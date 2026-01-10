@@ -54,6 +54,9 @@ constexpr std::array<unsigned int, 6> shared_indices = {
 std::vector<std::shared_ptr<Framebuffer>> all_framebuffers;
 std::vector<std::pair<Transform, TexturePack>> sprite_objects;
 std::vector<std::pair<Transform, Light>> lights;
+std::vector<unsigned int> loaded_textures;
+std::vector<unsigned int> loaded_vertex_arrays;
+std::vector<unsigned int> loaded_buffers;
 
 std::string ReadFile(std::filesystem::path path) {
   std::ifstream file(path);
@@ -134,40 +137,73 @@ void SetLightUniforms(std::vector<std::pair<Transform, Light>>& lights, unsigned
   }
 }
 
-std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window) {
-  std::shared_ptr<Framebuffer> framebuffer = std::make_shared<Framebuffer>();
-  glGenFramebuffers(1, &framebuffer->id);
-  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
-  glGenTextures(1, &framebuffer->colorbuffer);
-  glBindTexture(GL_TEXTURE_2D, framebuffer->colorbuffer);
-  int width, height;
-  glfwGetFramebufferSize(window, &width, &height);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebuffer->colorbuffer, 0);
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    throw std::runtime_error("Framebuffer is not complete...");
+struct VertexAttributeCreateInfo {
+  unsigned int index;
+  int size;
+  unsigned int type;
+  bool normalized;
+  int stride;
+  void* pointer;
+};
+
+struct VertexArrayCreateInfo {
+  std::vector<VertexAttributeCreateInfo> attributes;
+  bool has_vertex_buffer = true;
+  unsigned int vertex_buffer;
+  bool has_index_buffer = false;
+  unsigned int index_buffer;
+};
+
+unsigned int CreateVertexArrayObject(VertexArrayCreateInfo info) {
+  unsigned int vao;
+  glGenVertexArrays(1, &vao);
+  glBindVertexArray(vao);
+  if (info.has_vertex_buffer) {
+    glBindBuffer(GL_ARRAY_BUFFER, info.vertex_buffer);
   }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  all_framebuffers.push_back(framebuffer);
-  return framebuffer;
+  if (info.has_index_buffer) {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, info.index_buffer);
+  }
+  for (auto& attrib : info.attributes) {
+    glVertexAttribPointer(attrib.index, attrib.size, attrib.type, attrib.normalized,
+                          attrib.stride, attrib.pointer);
+    glEnableVertexAttribArray(attrib.index);
+  }
+  loaded_vertex_arrays.push_back(vao);
+  return vao;
 }
 
-unsigned int LoadTexture(std::string path) {
-  if (!std::filesystem::exists(path)) {
-    throw std::runtime_error("Path does not exist");
-  }
-  int w, h, nr_channels;
-  auto data = stbi_load(path.c_str(), &w, &h, &nr_channels, 0);
+template <typename T>
+struct BufferCreateInfo {
+  unsigned int type; // GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER, etc.
+  unsigned int usage; // GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.
+  std::vector<T> data; // Data
+};
+
+template <typename T>
+unsigned int CreateBufferObject(BufferCreateInfo<T> info) {
+  unsigned int buffer;
+  glGenBuffers(1, &buffer);
+  glBindBuffer(info.type, buffer);
+  glBufferData(info.type, info.data.size() * sizeof(T), info.data.data(),
+                info.usage);
+  loaded_buffers.push_back(buffer);
+  return buffer;
+}
+
+struct TextureCreateInfo {
+  int width;
+  int height;
+  int channels;
+  unsigned char* data;
+};
+
+unsigned int CreateTextureObject(TextureCreateInfo info) {
   unsigned int texture;
   glGenTextures(1, &texture);
   glBindTexture(GL_TEXTURE_2D, texture);
-  if (data) {
-    GLenum format;
-    switch (nr_channels) {
+  GLenum format;
+  switch (info.channels) {
     case 1:
       format = GL_RED;
       break;
@@ -183,19 +219,47 @@ unsigned int LoadTexture(std::string path) {
     default:
       format = GL_RGB;
       break;
-    }
-    glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  }
+  glTexImage2D(GL_TEXTURE_2D, 0, format, info.width, info.height, 0, format, GL_UNSIGNED_BYTE, info.data);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  loaded_textures.push_back(texture);
+  return texture;
+}
+
+std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window) {
+  std::shared_ptr<Framebuffer> framebuffer = std::make_shared<Framebuffer>();
+  glGenFramebuffers(1, &framebuffer->id);
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
+  int width, height;
+  glfwGetFramebufferSize(window, &width, &height);
+  auto create_info = TextureCreateInfo{ width, height, 3, nullptr };
+  framebuffer->colorbuffer = CreateTextureObject(create_info);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebuffer->colorbuffer, 0);
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    throw std::runtime_error("Framebuffer is not complete...");
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  all_framebuffers.push_back(framebuffer);
+  return framebuffer;
+}
+
+unsigned int LoadTexture(std::string path) {
+  if (!std::filesystem::exists(path)) {
+    throw std::runtime_error("Path does not exist");
+  }
+  int w, h, nr_channels;
+  auto data = stbi_load(path.c_str(), &w, &h, &nr_channels, 0);
+  if (data) {
+    auto texture = CreateTextureObject({ w, h, nr_channels, data });
+    stbi_image_free(data);
+    return texture;
   } else {
     stbi_image_free(data);
     throw std::runtime_error("Failed to load texture");
   }
-  stbi_image_free(data);
-  return texture;
 }
 
 int main(int argc, char *argv[]) {
@@ -232,36 +296,60 @@ int main(int argc, char *argv[]) {
   ImGui_ImplOpenGL3_Init("#version 150");
 
   // Setting up GL objects
-  unsigned int sprite_vertex_attrib, sprite_vertex_buffer, sprite_indices_buffer, deferred_vertex_attrib, deferred_vertex_buffer, deferred_indices_buffer;
   auto color_buffer = CreateFramebuffer(window), normal_buffer = CreateFramebuffer(window);
   auto sprite_shader = LoadShaderProgram("assets/sprite.vert", "assets/sprite.frag"),
        deferred_shader = LoadShaderProgram("assets/deferred.vert", "assets/deferred.frag");
-  glGenVertexArrays(1, &sprite_vertex_attrib);
-  glGenBuffers(1, &sprite_vertex_buffer);
-  glGenBuffers(1, &sprite_indices_buffer);
-  glBindVertexArray(sprite_vertex_attrib);
-  glBindBuffer(GL_ARRAY_BUFFER, sprite_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sprite_vertices.size() * sizeof(float), sprite_vertices.data(), GL_STATIC_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sprite_indices_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, shared_indices.size() * sizeof(unsigned int), shared_indices.data(), GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
+
+  auto sprite_vertices_create_info = BufferCreateInfo<float>{
+    GL_ARRAY_BUFFER,
+    GL_STATIC_DRAW,
+    std::vector<float>(sprite_vertices.begin(), sprite_vertices.end())
+  };
+  auto sprite_indices_create_info = BufferCreateInfo<unsigned int>{
+    GL_ELEMENT_ARRAY_BUFFER,
+    GL_STATIC_DRAW,
+    std::vector<unsigned int>(shared_indices.begin(), shared_indices.end())
+  };
+  auto sprite_vertex_buffer = CreateBufferObject(sprite_vertices_create_info);
+  auto sprite_indices_buffer = CreateBufferObject(sprite_indices_create_info);
+
+  auto sprite_vertex_array_create_info = VertexArrayCreateInfo{
+    {
+      {0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0},
+      {1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))}
+    },
+    true,
+    sprite_vertex_buffer,
+    true,
+    sprite_indices_buffer
+  };
+  auto sprite_vertex_array = CreateVertexArrayObject(sprite_vertex_array_create_info);
   glBindVertexArray(0);
 
-  glGenVertexArrays(1, &deferred_vertex_attrib);
-  glGenBuffers(1, &deferred_vertex_buffer);
-  glGenBuffers(1, &deferred_indices_buffer);
-  glBindVertexArray(deferred_vertex_attrib);
-  glBindBuffer(GL_ARRAY_BUFFER, deferred_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, deferred_vertices.size() * sizeof(float), deferred_vertices.data(), GL_STATIC_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, deferred_indices_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, shared_indices.size() * sizeof(unsigned int), shared_indices.data(), GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-  glEnableVertexAttribArray(1);
+  auto deferred_vertices_create_info = BufferCreateInfo<float>{
+    GL_ARRAY_BUFFER,
+    GL_STATIC_DRAW,
+    std::vector<float>(deferred_vertices.begin(), deferred_vertices.end())
+  };
+  auto deferred_indices_create_info = BufferCreateInfo<unsigned int>{
+    GL_ELEMENT_ARRAY_BUFFER,
+    GL_STATIC_DRAW,
+    std::vector<unsigned int>(shared_indices.begin(), shared_indices.end())
+  };
+  auto deferred_vertex_buffer = CreateBufferObject(deferred_vertices_create_info);
+  auto deferred_indices_buffer = CreateBufferObject(deferred_indices_create_info);
+
+  auto deferred_vertex_array_create_info = VertexArrayCreateInfo{
+    {
+      {0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0},
+      {1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float))}
+    },
+    true,
+    deferred_vertex_buffer,
+    true,
+    deferred_indices_buffer
+  };
+  auto deferred_vertex_attrib = CreateVertexArrayObject(deferred_vertex_array_create_info);
   glBindVertexArray(0);
 
 
@@ -291,7 +379,7 @@ int main(int argc, char *argv[]) {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(sprite_shader);
-    glBindVertexArray(sprite_vertex_attrib);
+    glBindVertexArray(sprite_vertex_array);
     for (auto& [transform, texture_pack] : sprite_objects) {
       model = glm::translate(glm::mat4(1.0f), transform.position);
       model = glm::rotate(model, glm::radians(transform.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -311,7 +399,7 @@ int main(int argc, char *argv[]) {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(sprite_shader);
-    glBindVertexArray(sprite_vertex_attrib);
+    glBindVertexArray(sprite_vertex_array);
     for (auto& [transform, texture_pack ] : sprite_objects) {
       model = glm::translate(glm::mat4(1.0f), transform.position);
       model = glm::rotate(model, glm::radians(transform.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -358,11 +446,11 @@ int main(int argc, char *argv[]) {
         int type = static_cast<int>(light.type);
         ImGui::InputInt("Light Type (0: Global, 1: Point)", &type);
         light.type = static_cast<LightType>(type);
-        ImGui::DragFloat3("Light Position", glm::value_ptr(transform.position));
-        ImGui::DragFloat("Intensity", &light.intensity);
-        ImGui::DragFloat3("Color", glm::value_ptr(light.color));
-        ImGui::DragFloat("Falloff", &light.radial_falloff);
-        ImGui::DragFloat("Volumetric Intensity", &light.volumetric_intensity);
+        ImGui::DragFloat3("Light Position", glm::value_ptr(transform.position), 0.1f);
+        ImGui::DragFloat("Intensity", &light.intensity, 0.1f);
+        ImGui::ColorEdit3("Color", glm::value_ptr(light.color));
+        ImGui::DragFloat("Falloff", &light.radial_falloff, 0.1f);
+        ImGui::DragFloat("Volumetric Intensity", &light.volumetric_intensity, 0.1f);
         ImGui::PopID();
       }
       int sprite_counter = 0;
@@ -370,9 +458,9 @@ int main(int argc, char *argv[]) {
         sprite_counter++;
         ImGui::PushID(sprite_counter);
         ImGui::SeparatorText("Sprite Object");
-        ImGui::DragFloat3("Position", glm::value_ptr(transform.position));
-        ImGui::DragFloat3("Scale", glm::value_ptr(transform.scale));
-        ImGui::DragFloat("Rotation", &transform.rotation);
+        ImGui::DragFloat3("Position", glm::value_ptr(transform.position), 0.1f);
+        ImGui::DragFloat3("Scale", glm::value_ptr(transform.scale), 0.1f);
+        ImGui::DragFloat("Rotation", &transform.rotation, 0.1f);
         ImGui::Image((ImTextureID)(intptr_t)texture_pack.color, ImVec2(50, 50));
         ImGui::SameLine();
         ImGui::Image((ImTextureID)(intptr_t)texture_pack.normal, ImVec2(50, 50));
@@ -394,14 +482,11 @@ int main(int argc, char *argv[]) {
     glfwPollEvents();
   }
 
-  glDeleteVertexArrays(1, &sprite_vertex_attrib);
-  glDeleteBuffers(1, &sprite_vertex_buffer);
-  glDeleteBuffers(1, &sprite_indices_buffer);
-  glDeleteVertexArrays(1, &deferred_vertex_attrib);
-  glDeleteBuffers(1, &deferred_vertex_buffer);
-  glDeleteBuffers(1, &deferred_indices_buffer);
+  glDeleteVertexArrays(loaded_vertex_arrays.size(), loaded_vertex_arrays.data());
+  glDeleteBuffers(loaded_buffers.size(), loaded_buffers.data());
   glDeleteProgram(sprite_shader);
   glDeleteProgram(deferred_shader);
+  glDeleteTextures(loaded_textures.size(), loaded_textures.data());
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
