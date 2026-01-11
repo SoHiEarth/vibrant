@@ -148,21 +148,15 @@ struct VertexAttributeCreateInfo {
 
 struct VertexArrayCreateInfo {
   std::vector<VertexAttributeCreateInfo> attributes;
-  bool has_vertex_buffer = true;
-  unsigned int vertex_buffer;
-  bool has_index_buffer = false;
-  unsigned int index_buffer;
+  std::vector<std::pair<unsigned int, unsigned int>> buffers;
 };
 
 unsigned int CreateVertexArrayObject(VertexArrayCreateInfo info) {
   unsigned int vao;
   glGenVertexArrays(1, &vao);
   glBindVertexArray(vao);
-  if (info.has_vertex_buffer) {
-    glBindBuffer(GL_ARRAY_BUFFER, info.vertex_buffer);
-  }
-  if (info.has_index_buffer) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, info.index_buffer);
+  for (auto& [type, buffer] : info.buffers) {
+    glBindBuffer(type, buffer);
   }
   for (auto& attrib : info.attributes) {
     glVertexAttribPointer(attrib.index, attrib.size, attrib.type, attrib.normalized,
@@ -175,9 +169,10 @@ unsigned int CreateVertexArrayObject(VertexArrayCreateInfo info) {
 
 template <typename T>
 struct BufferCreateInfo {
-  unsigned int type; // GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER, etc.
+  unsigned int type; // GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER, GL_UNIFORM_BUFFER, etc.
   unsigned int usage; // GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.
-  std::vector<T> data; // Data
+  size_t size; // Size in bytes
+  const T* data; // Data
 };
 
 template <typename T>
@@ -185,8 +180,7 @@ unsigned int CreateBufferObject(BufferCreateInfo<T> info) {
   unsigned int buffer;
   glGenBuffers(1, &buffer);
   glBindBuffer(info.type, buffer);
-  glBufferData(info.type, info.data.size() * sizeof(T), info.data.data(),
-                info.usage);
+  glBufferData(info.type, info.size, info.data, info.usage);
   loaded_buffers.push_back(buffer);
   return buffer;
 }
@@ -297,57 +291,71 @@ int main(int argc, char *argv[]) {
 
   // Setting up GL objects
   auto color_buffer = CreateFramebuffer(window), normal_buffer = CreateFramebuffer(window);
-  auto sprite_shader = LoadShaderProgram("assets/sprite.vert", "assets/sprite.frag"),
-       deferred_shader = LoadShaderProgram("assets/deferred.vert", "assets/deferred.frag");
+  
+  auto sprite_shader = LoadShaderProgram("assets/sprite.vert", "assets/sprite.frag");
+  auto sprite_uniform_buffer_create_info = BufferCreateInfo<float>{
+    GL_UNIFORM_BUFFER,
+    GL_STATIC_DRAW,
+    2 * sizeof(glm::mat4),
+    NULL
+  };
+  auto sprite_uniform_buffer = CreateBufferObject(sprite_uniform_buffer_create_info);
+  auto uniform_block_index = glGetUniformBlockIndex(sprite_shader, "Matrices");
+  glUniformBlockBinding(sprite_shader, uniform_block_index, 0);
+  glBindBufferRange(GL_UNIFORM_BUFFER, 0, sprite_uniform_buffer, 0, 2 * sizeof(glm::mat4));
+  glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
   auto sprite_vertices_create_info = BufferCreateInfo<float>{
     GL_ARRAY_BUFFER,
     GL_STATIC_DRAW,
-    std::vector<float>(sprite_vertices.begin(), sprite_vertices.end())
+    sprite_vertices.size() * sizeof(float),
+    sprite_vertices.data()
   };
   auto sprite_indices_create_info = BufferCreateInfo<unsigned int>{
     GL_ELEMENT_ARRAY_BUFFER,
     GL_STATIC_DRAW,
-    std::vector<unsigned int>(shared_indices.begin(), shared_indices.end())
+    shared_indices.size() * sizeof(unsigned int),
+    shared_indices.data()
   };
   auto sprite_vertex_buffer = CreateBufferObject(sprite_vertices_create_info);
   auto sprite_indices_buffer = CreateBufferObject(sprite_indices_create_info);
-
   auto sprite_vertex_array_create_info = VertexArrayCreateInfo{
     {
       {0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0},
       {1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))}
     },
-    true,
-    sprite_vertex_buffer,
-    true,
-    sprite_indices_buffer
+    {
+      {GL_ARRAY_BUFFER, sprite_vertex_buffer},
+      {GL_ELEMENT_ARRAY_BUFFER, sprite_indices_buffer},
+    }
   };
   auto sprite_vertex_array = CreateVertexArrayObject(sprite_vertex_array_create_info);
   glBindVertexArray(0);
 
+  auto deferred_shader = LoadShaderProgram("assets/deferred.vert", "assets/deferred.frag");
   auto deferred_vertices_create_info = BufferCreateInfo<float>{
     GL_ARRAY_BUFFER,
     GL_STATIC_DRAW,
-    std::vector<float>(deferred_vertices.begin(), deferred_vertices.end())
+    deferred_vertices.size() * sizeof(float),
+    deferred_vertices.data()
   };
   auto deferred_indices_create_info = BufferCreateInfo<unsigned int>{
     GL_ELEMENT_ARRAY_BUFFER,
     GL_STATIC_DRAW,
-    std::vector<unsigned int>(shared_indices.begin(), shared_indices.end())
+    shared_indices.size() * sizeof(unsigned int),
+    shared_indices.data()
   };
   auto deferred_vertex_buffer = CreateBufferObject(deferred_vertices_create_info);
   auto deferred_indices_buffer = CreateBufferObject(deferred_indices_create_info);
-
   auto deferred_vertex_array_create_info = VertexArrayCreateInfo{
     {
       {0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0},
       {1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float))}
     },
-    true,
-    deferred_vertex_buffer,
-    true,
-    deferred_indices_buffer
+    {
+      {GL_ARRAY_BUFFER, deferred_vertex_buffer},
+      {GL_ELEMENT_ARRAY_BUFFER, deferred_indices_buffer}
+    }
   };
   auto deferred_vertex_attrib = CreateVertexArrayObject(deferred_vertex_array_create_info);
   glBindVertexArray(0);
@@ -360,18 +368,23 @@ int main(int argc, char *argv[]) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     auto model = glm::mat4(1.0f), view = glm::mat4(1.0f), projection = glm::mat4(1.0f);
-    float ortho_scale = 10.0f;
+        float ortho_scale = 10.0f;
     int window_width, window_height;
     glfwGetFramebufferSize(window, &window_width, &window_height);
     float aspect = static_cast<float>(window_width) / static_cast<float>(window_height);
     projection = glm::ortho(
-    -ortho_scale * aspect,
-     ortho_scale * aspect,
-    -ortho_scale,
-     ortho_scale,
-    -1.0f,
-     1.0f
-);
+      -ortho_scale * aspect,
+       ortho_scale * aspect,
+      -ortho_scale,
+       ortho_scale,
+      -1.0f,
+       1.0f
+    );
+    glBindBuffer(GL_UNIFORM_BUFFER, sprite_uniform_buffer);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projection));
+    glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
 
     // Draw Color buffer
     glBindFramebuffer(GL_FRAMEBUFFER, color_buffer->id);
@@ -384,8 +397,6 @@ int main(int argc, char *argv[]) {
       model = glm::translate(glm::mat4(1.0f), transform.position);
       model = glm::rotate(model, glm::radians(transform.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
       model = glm::scale(model, transform.scale);
-      glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "view"), 1, GL_FALSE, glm::value_ptr(view));
-      glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
       glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
@@ -404,8 +415,6 @@ int main(int argc, char *argv[]) {
       model = glm::translate(glm::mat4(1.0f), transform.position);
       model = glm::rotate(model, glm::radians(transform.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
       model = glm::scale(model, transform.scale);
-      glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "view"), 1, GL_FALSE, glm::value_ptr(view));
-      glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
       glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
