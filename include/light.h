@@ -8,8 +8,8 @@ enum class LightType : int {
 
 struct Light {
   LightType type = LightType::Point;
-  float intensity = 5;
+  float intensity = 1;
   glm::vec3 color = { 1.0f, 1.0f, 1.0f };
-  float radial_falloff = 0.1;
-  float volumetric_intensity = 0.1;
+  float radial_falloff = 1.0;
+  float volumetric_intensity = 1.0;
 };

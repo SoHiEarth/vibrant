@@ -17,6 +17,10 @@ uniform sampler2D normal_buffer;
 uniform int light_count;
 uniform Light lights[MAX_LIGHTS];
 
+vec3 CalculateGlobalLight(Light light, vec3 albedo) {
+  return albedo * light.color * light.intensity;
+}
+
 void main() {
   vec4 sample = texture(color_buffer, TexCoord);
   if (sample.a == 0.0) {
@@ -28,7 +32,7 @@ void main() {
   vec3 total_lighting = vec3(0.0);
   for (int i = 0; i < light_count && i < MAX_LIGHTS; i++) {
     if (lights[i].type == 0) {
-      total_lighting += albedo * lights[i].color * lights[i].intensity;
+      total_lighting += CalculateGlobalLight(lights[i], albedo);
     }
     else if (lights[i].type == 1) {
       vec2 light_offset = lights[i].position.xy - TexCoord;
