@@ -1,4 +1,14 @@
 <?xml version="1.0"?>
 <Attributes>
-	<Template name="Light" />
+	<Template name="Light">
+		<Attribute name="light.type" type="int" value="0" />
+		<Attribute name="light.intensity" type="float" value="1.000000" />
+		<Attribute name="light.color" type="vec3" value="1.000000,1.000000,1.000000" />
+		<Attribute name="light.radial_falloff" type="float" value="1.000000" />
+		<Attribute name="light.volumetric_intensity" type="float" value="1.000000" />
+	</Template>
+	<Template name="New Template">
+		<Attribute name="texture.color" type="uint" value="0" />
+		<Attribute name="texture.normal" type="uint" value="0" />
+	</Template>
 </Attributes>
