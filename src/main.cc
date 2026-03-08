@@ -565,6 +565,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
           if (ImGui::Button("Delete Template")) {
             templates_to_erase.push_back(attr_template);
           }
+        }
         ImGui::PopID();
       }
       if (ImGui::Button("Add Template")) {
