@@ -1,12 +1,14 @@
 #include "core.h"
+
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+
 #include <stdexcept>
 
 void core::Initialize(InitializeFlags flags, void* window_ptr) {
-  if (static_cast<int>(flags) & static_cast<int>(InitializeFlags::OPENGL)) {
+  if (static_cast<int>(flags) & static_cast<int>(InitializeFlags::kOpengl)) {
     if (!glfwInit()) {
       throw std::runtime_error("Failed to initialize GLFW");
     }
@@ -18,11 +20,12 @@ void core::Initialize(InitializeFlags flags, void* window_ptr) {
 #endif
   }
 
-  if (static_cast<int>(flags) & static_cast<int>(InitializeFlags::IMGUI)) {
+  if (static_cast<int>(flags) & static_cast<int>(InitializeFlags::kImgui)) {
     if (window_ptr == nullptr) {
-      throw std::runtime_error("IMGUI initialization requires a valid GLFWwindow pointer");
+      throw std::runtime_error(
+          "IMGUI initialization requires a valid GLFWwindow pointer");
     }
-    auto window = static_cast<GLFWwindow*>(window_ptr);
+    auto* window = static_cast<GLFWwindow*>(window_ptr);
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(window, true);

@@ -1,6 +1,11 @@
-#pragma once
-#include "opengl_objects.h"
+#ifndef HELPERS_H
+#define HELPERS_H
+
 #include <GLFW/glfw3.h>
+
+#include <memory>
+
+#include "opengl_objects.h"
 
 struct VertexAttributeCreateInfo {
   unsigned int index;
@@ -18,10 +23,11 @@ struct VertexArrayCreateInfo {
 
 template <typename T>
 struct BufferCreateInfo {
-  unsigned int type; // GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER, GL_UNIFORM_BUFFER, etc.
-  unsigned int usage; // GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.
-  size_t size; // Size in bytes
-  const T* data; // Data
+  unsigned int type;   // GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER,
+                       // GL_UNIFORM_BUFFER, etc.
+  unsigned int usage;  // GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.
+  size_t size;         // Size in bytes
+  const T* data;       // Data
 };
 
 struct TextureCreateInfo {
@@ -37,7 +43,9 @@ extern std::vector<unsigned int> loaded_vertex_arrays;
 extern std::vector<unsigned int> loaded_buffers;
 
 unsigned int CreateVertexArrayObject(VertexArrayCreateInfo info);
-template <typename T> unsigned int CreateBufferObject(BufferCreateInfo<T> info) {
+
+template <typename T>
+unsigned int CreateBufferObject(BufferCreateInfo<T> info) {
   unsigned int buffer;
   glGenBuffers(1, &buffer);
   glBindBuffer(info.type, buffer);
@@ -45,6 +53,10 @@ template <typename T> unsigned int CreateBufferObject(BufferCreateInfo<T> info) 
   loaded_buffers.push_back(buffer);
   return buffer;
 }
+
 unsigned int CreateTextureObject(TextureCreateInfo info);
-unsigned int LoadShaderProgram(std::vector<std::pair<unsigned int, std::string>> shader_paths);
+unsigned int LoadShaderProgram(
+    std::vector<std::pair<unsigned int, std::string>> shader_paths);
 std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window, float scale);
+
+#endif  // HELPERS_H

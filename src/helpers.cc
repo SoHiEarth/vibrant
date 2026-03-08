@@ -1,16 +1,17 @@
 #include <glad/glad.h>
 // CODE BLOCK: To stop clang from messing with my include
-#include "helpers.h"
-#include <utility>
-#include <memory>
-#include <vector>
-#include <fstream>
-#include <sstream>
-#include <filesystem>
 #include <array>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <sstream>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
-constexpr int log_size = 512;
+#include "helpers.h"
+
+constexpr int kLogSize = 512;
 std::vector<std::shared_ptr<Framebuffer>> all_framebuffers;
 std::vector<unsigned int> loaded_textures;
 std::vector<unsigned int> loaded_vertex_arrays;
@@ -18,7 +19,7 @@ std::vector<unsigned int> loaded_buffers;
 
 // Shader-related functions
 
-std::string ReadFile(std::filesystem::path path) {
+static std::string ReadFile(const std::filesystem::path& path) {
   std::ifstream file(path);
   if (!file.is_open()) {
     throw std::runtime_error("Failed to open file: " + path.string());
@@ -29,7 +30,7 @@ std::string ReadFile(std::filesystem::path path) {
   return stream.str();
 }
 
-unsigned int CompileShader(int shader_type, std::string source) {
+static unsigned int CompileShader(int shader_type, std::string source) {
   auto shader = glCreateShader(shader_type);
   const char* source_data = source.data();
   glShaderSource(shader, 1, &source_data, nullptr);
@@ -37,14 +38,16 @@ unsigned int CompileShader(int shader_type, std::string source) {
   int success;
   glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
   if (success == 0) {
-    std::array<char, log_size> log{};
-    glGetShaderInfoLog(shader, log_size, nullptr, log.data());
-    throw std::runtime_error("Shader compilation failed: " + std::string(log.data()));
+    std::array<char, kLogSize> log{};
+    glGetShaderInfoLog(shader, kLogSize, nullptr, log.data());
+    throw std::runtime_error("Shader compilation failed: " +
+                             std::string(log.data()));
   }
   return shader;
 }
 
-unsigned int LoadShaderProgram(std::vector<std::pair<unsigned int, std::string>> shader_paths) {
+unsigned int LoadShaderProgram(
+    std::vector<std::pair<unsigned int, std::string>> shader_paths) {
   auto shader = glCreateProgram();
   for (auto& [shader_type, path] : shader_paths) {
     auto compiled_shader = CompileShader(shader_type, ReadFile(path));
@@ -53,29 +56,36 @@ unsigned int LoadShaderProgram(std::vector<std::pair<unsigned int, std::string>>
   }
   glLinkProgram(shader);
   int success;
-  std::array<char, log_size> log{};
+  std::array<char, kLogSize> log{};
   glGetProgramiv(shader, GL_LINK_STATUS, &success);
   if (success == 0) {
-    glGetProgramInfoLog(shader, log_size, nullptr, log.data());
-    throw std::runtime_error("Shader program link failed: " + std::string(log.data()));
+    glGetProgramInfoLog(shader, kLogSize, nullptr, log.data());
+    throw std::runtime_error("Shader program link failed: " +
+                             std::string(log.data()));
   }
   return shader;
 }
 
 // Framebuffer-related functions
-std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window, float scale) {
+std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window,
+                                               float scale) {
   std::shared_ptr<Framebuffer> framebuffer = std::make_shared<Framebuffer>();
   framebuffer->scale = scale;
-  int width, height;
+  int width;
+  int height;
   glfwGetFramebufferSize(window, &width, &height);
-  framebuffer->size = glm::ivec2(std::max(1, (int)(width * scale)),
-                                 std::max(1, (int)(height * scale)));
+  framebuffer->size = glm::ivec2(std::max(1, static_cast<int>(width * scale)),
+                                 std::max(1, static_cast<int>(height * scale)));
   glGenFramebuffers(1, &framebuffer->id);
   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
-  
-  auto create_info = TextureCreateInfo{ framebuffer->size.x, framebuffer->size.y, 3, nullptr };
+
+  auto create_info = TextureCreateInfo{.width = framebuffer->size.x,
+                                       .height = framebuffer->size.y,
+                                       .channels = 3,
+                                       .data = nullptr};
   framebuffer->colorbuffer = CreateTextureObject(create_info);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebuffer->colorbuffer, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         framebuffer->colorbuffer, 0);
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     throw std::runtime_error("Framebuffer is not complete...");
   }
@@ -93,15 +103,14 @@ unsigned int CreateVertexArrayObject(VertexArrayCreateInfo info) {
     glBindBuffer(type, buffer);
   }
   for (auto& attrib : info.attributes) {
-    glVertexAttribPointer(attrib.index, attrib.size, attrib.type, attrib.normalized,
+    glVertexAttribPointer(attrib.index, attrib.size, attrib.type,
+                          static_cast<GLboolean>(attrib.normalized),
                           attrib.stride, attrib.pointer);
     glEnableVertexAttribArray(attrib.index);
   }
   loaded_vertex_arrays.push_back(vao);
   return vao;
 }
-
-
 
 unsigned int CreateTextureObject(TextureCreateInfo info) {
   unsigned int texture;
@@ -125,7 +134,8 @@ unsigned int CreateTextureObject(TextureCreateInfo info) {
       format = GL_RGB;
       break;
   }
-  glTexImage2D(GL_TEXTURE_2D, 0, format, info.width, info.height, 0, format, GL_UNSIGNED_BYTE, info.data);
+  glTexImage2D(GL_TEXTURE_2D, 0, format, info.width, info.height, 0, format,
+               GL_UNSIGNED_BYTE, info.data);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
