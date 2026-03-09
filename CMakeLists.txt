@@ -1,3 +1,4 @@
+#include <chrono>
 cmake_minimum_required(VERSION 3.21)
 project(vibrant)
 set(CMAKE_CXX_STANDARD 23)
@@ -18,6 +19,9 @@ target_sources(vibrant PRIVATE
   src/core.cc
   src/helpers.cc
   src/object.cc
+  src/docs.cc
+  src/tutorial.cc
+  src/scene.cc
 )
 target_include_directories(vibrant PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(vibrant PUBLIC

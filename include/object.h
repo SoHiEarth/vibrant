@@ -7,9 +7,10 @@
 #include <vector>
 
 #include "log.h"
+#include "texture.h"
 
 using AttributeData =
-    std::variant<int, float, glm::vec2, glm::vec3, glm::vec4, unsigned int>;
+    std::variant<int, float, glm::vec2, glm::vec3, glm::vec4, Texture>;
 
 struct Object {
   std::string name;

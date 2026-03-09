@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<documentation>
+	<tab name="Introduction"><![CDATA[# Vibrant Rendering Engine
+## Features
+  * Dynamic Lighting
+  * Normal Support
+  * Framebuffer Scaling
+
+## GitHub
+[Link](https://github.com/SoHiEarth/vibrant)]]></tab>
+	<tab name="Attributes"><![CDATA[# Attributes
+## Keep In Mind...
+The *unsigned int* type is basically a texture.
+## Transform
+  * **transform.position** *vec3*
+The position of the object that the component is attached to.
+  * **transform.scale** *vec3*
+The scale of the object that the component is attached to.
+  * **transform.rotation** *float*
+The rotation of the object. Controls the z-axis in a 3d space.
+## Lights
+  * **light.type** *int*
+The light's type. 0 is directional, 1 is a point light.
+  * **light.intensity** *float*
+The light's intensity.
+  * **light.color** *vec3*
+The light's color.
+  * **light.radial_falloff** *float*
+Controls the attenuation of the light. A large value means that the light is focused more on a single point.
+  * **light.volumetric_intensity** *float*
+The volumetric intensity of the light.
+** You can register these values from the "Light" template. **
+## Sprite
+  * **texture.color** *unsigned int*
+The color texture.
+  * **texture.normal** *unsigned int*
+The normal texture.]]></tab>
+	<tab name="Help"><![CDATA[Contact at my [GitHub](https://github.com/SoHiEarth/vibrant)]]></tab>
+</documentation>
