@@ -15,8 +15,8 @@
 		<attribute name="transform.position" type="vec3" value="0.000000,0.000000,0.000000" />
 		<attribute name="transform.scale" type="vec3" value="15.000000,15.000000,5.000000" />
 		<attribute name="transform.rotation" type="float" value="0.000000" />
-		<attribute name="texture.color" type="texture" value="/home/kotaro/vibrant/assets/color.png" />
-		<attribute name="texture.normal" type="texture" value="/home/kotaro/vibrant/assets/normal.png" />
+		<attribute name="texture.color" type="texture" value="/home/kvibrant/assets/color.png" />
+		<attribute name="texture.normal" type="texture" value="/home/kotrant/assets/normal.png" />
 		<tag name="sprite" />
 	</object>
 </scene>
