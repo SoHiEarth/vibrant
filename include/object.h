@@ -1,10 +1,12 @@
 #pragma once
 #include <algorithm>
 #include <glm/glm.hpp>
-#include <iostream>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
+
+#include "log.h"
 
 using AttributeData =
     std::variant<int, float, glm::vec2, glm::vec3, glm::vec4, unsigned int>;
@@ -13,9 +15,9 @@ struct Object {
   std::string name;
   std::vector<std::string> tags;
   std::vector<std::pair<std::string, AttributeData>> attributes;
-  bool HasTag(const std::string& tag) {
+  bool HasTag(std::string_view tag) const {
     return std::ranges::any_of(tags,
-                               [&](const std::string& t) { return t == tag; });
+                               [&](std::string_view t) { return t == tag; });
   }
 
   AttributeData& GetAttribute(std::string_view attribute_name) {
@@ -24,6 +26,8 @@ struct Object {
         return data;
       }
     }
+    output_log["Attribute Not Found: " + std::string(attribute_name)] =
+        LogLevel::kError;
     throw std::runtime_error("Attribute not found: " +
                              std::string(attribute_name));
   }
@@ -31,7 +35,8 @@ struct Object {
   void SetAttribute(std::string_view attribute_name,
                     const AttributeData& value) {
     attributes.emplace_back(attribute_name, value);
-    std::cout << "Registered attribute: " << attribute_name << std::endl;
+    output_log["Attribute Set: " + std::string(attribute_name)] =
+        LogLevel::kInfo;
   }
 };
 

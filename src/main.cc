@@ -19,12 +19,26 @@
 #include <format>
 #include <print>
 #include <string>
+#include <map>
 
 #include "core.h"
 #include "helpers.h"
 #include "scene.h"
 
+std::map<std::string, LogLevel> output_log;
+
 namespace {
+void ClearAllInfo() {
+  std::vector<std::string> keys_to_erase;
+  for (const auto& [key, value] : output_log) {
+    if (value == LogLevel::kInfo) {
+      keys_to_erase.push_back(key);
+    }
+  }
+  for (const auto& key : keys_to_erase) {
+    output_log.erase(key);
+  }
+}
 constexpr glm::ivec2 kDefaultWindowSize = {800, 600};
 constexpr std::array<float, 20> kSpriteVertices = {
     0.5F,  0.5F,  0.0F, 1.0F, 1.0F, 0.5F,  -0.5F, 0.0F, 1.0F, 0.0F,
@@ -39,6 +53,7 @@ std::vector<AttributeTemplate> attribute_templates;
 bool show_demo_window = false;
 bool show_template_window = false;
 bool show_edit_window = true;
+bool show_output_window = false;
 
 unsigned int LoadTexture(const std::string& path) {
   if (!std::filesystem::exists(path)) {
@@ -108,9 +123,9 @@ void FramebufferResizeCallback(GLFWwindow* /*window*/, int w, int h) {
 void PresentGlfwErrorInfo() {
   const char* error_desc;
   auto error = glfwGetError(&error_desc);
-  if (error != GLFW_NO_ERROR)
-    std::print("Error Description: {}\n",
-               error_desc ? error_desc : "No Description Provided, gg.");
+  if (error != GLFW_NO_ERROR) {
+    output_log["GLFW Error: " + std::to_string(error)] = LogLevel::kError;
+  }
 }
 
 void SetLightUniforms(std::vector<std::shared_ptr<Object>>& lights,
@@ -124,17 +139,23 @@ void SetLightUniforms(std::vector<std::shared_ptr<Object>>& lights,
   glUniform1i(glGetUniformLocation(shader, "light_count"),
               light_objects.size());
   for (int i = 0; i < light_objects.size(); i++) {
-    auto type = std::get<int>(light_objects[i]->GetAttribute("light.type"));
-    auto position = std::get<glm::vec3>(
-        light_objects[i]->GetAttribute("transform.position"));
-    auto intensity =
-        std::get<float>(light_objects[i]->GetAttribute("light.intensity"));
-    auto color =
-        std::get<glm::vec3>(light_objects[i]->GetAttribute("light.color"));
-    auto falloff =
-        std::get<float>(light_objects[i]->GetAttribute("light.radial_falloff"));
-    auto volumetric_intensity = std::get<float>(
-        light_objects[i]->GetAttribute("light.volumetric_intensity"));
+    int type;
+    glm::vec3 position;
+    float intensity;
+    glm::vec3 color;
+    float falloff;
+    float volumetric_intensity;
+    try {
+      type = std::get<int>(light_objects[i]->GetAttribute("light.type"));
+      position = std::get<glm::vec3>(light_objects[i]->GetAttribute("transform.position"));
+      intensity = std::get<float>(light_objects[i]->GetAttribute("light.intensity"));
+      color = std::get<glm::vec3>(light_objects[i]->GetAttribute("light.color"));
+      falloff = std::get<float>(light_objects[i]->GetAttribute("light.radial_falloff"));
+      volumetric_intensity = std::get<float>(light_objects[i]->GetAttribute("light.volumetric_intensity"));
+    } catch (const std::runtime_error& e) {
+      output_log["Error retrieving light attributes: " + std::string(e.what())] = LogLevel::kError;
+      continue;
+    }
     auto prefix = std::format("lights[{}].", i);
     glUniform1i(glGetUniformLocation(shader, (prefix + "type").c_str()), type);
     glUniform3fv(glGetUniformLocation(shader, (prefix + "position").c_str()), 1,
@@ -257,6 +278,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
   }
 
   while (!glfwWindowShouldClose(window)) {
+    ClearAllInfo();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -286,13 +308,24 @@ int main(int /*argc*/, char* /*argv*/[]) {
     glBindVertexArray(sprite_vertex_array);
     for (auto& object : scene.objects) {
       if (!object->HasTag("sprite")) continue;
-      auto position =
-          std::get<glm::vec3>(object->GetAttribute("transform.position"));
-      auto scale = std::get<glm::vec3>(object->GetAttribute("transform.scale"));
-      auto rotation =
-          std::get<float>(object->GetAttribute("transform.rotation"));
-      unsigned int texture =
-          std::get<unsigned int>(object->GetAttribute("texture.color"));
+      glm::vec3 position;
+      glm::vec3 scale;
+      float rotation;
+      try {
+        position = std::get<glm::vec3>(object->GetAttribute("transform.position"));
+        scale = std::get<glm::vec3>(object->GetAttribute("transform.scale"));
+        rotation = std::get<float>(object->GetAttribute("transform.rotation"));
+      } catch (const std::runtime_error& e) {
+        output_log["Error retrieving transform attributes: " + std::string(e.what())] = LogLevel::kError;
+        continue;
+      }
+      unsigned int texture;
+      try {
+        texture = std::get<unsigned int>(object->GetAttribute("texture.color"));
+      } catch (const std::runtime_error& e) {
+        output_log["Error retrieving texture attribute: " + std::string(e.what())] = LogLevel::kError;
+        continue;
+      }
       model = glm::translate(glm::mat4(1.0F), position);
       model = glm::rotate(model, glm::radians(rotation),
                           glm::vec3(0.0F, 0.0F, 1.0F));
@@ -312,13 +345,24 @@ int main(int /*argc*/, char* /*argv*/[]) {
     glBindVertexArray(sprite_vertex_array);
     for (auto& object : scene.objects) {
       if (!object->HasTag("sprite")) continue;
-      auto position =
-          std::get<glm::vec3>(object->GetAttribute("transform.position"));
-      auto scale = std::get<glm::vec3>(object->GetAttribute("transform.scale"));
-      auto rotation =
-          std::get<float>(object->GetAttribute("transform.rotation"));
-      unsigned int texture =
-          std::get<unsigned int>(object->GetAttribute("texture.normal"));
+      glm::vec3 position;
+      glm::vec3 scale;
+      float rotation;
+      try {
+        position = std::get<glm::vec3>(object->GetAttribute("transform.position"));
+        scale = std::get<glm::vec3>(object->GetAttribute("transform.scale"));
+        rotation = std::get<float>(object->GetAttribute("transform.rotation"));
+      } catch (const std::runtime_error& e) {
+        output_log["Error retrieving transform attributes: " + std::string(e.what())] = LogLevel::kError;
+        continue;
+      }
+      unsigned int texture;
+      try {
+        texture = std::get<unsigned int>(object->GetAttribute("texture.normal"));
+      } catch (const std::runtime_error& e) {
+        output_log["Error retrieving normal texture attribute: " + std::string(e.what())] = LogLevel::kError;
+        continue;
+      }
       model = glm::translate(glm::mat4(1.0F), position);
       model = glm::rotate(model, glm::radians(rotation),
                           glm::vec3(0.0F, 0.0F, 1.0F));
@@ -367,6 +411,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
       ImGui::MenuItem("Edit Window", nullptr, &show_edit_window);
       ImGui::MenuItem("ImGui Demo Window", nullptr, &show_demo_window);
       ImGui::MenuItem("Attribute Templates", nullptr, &show_template_window);
+      ImGui::MenuItem("Output Log", nullptr, &show_output_window);
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
@@ -485,6 +530,36 @@ int main(int /*argc*/, char* /*argv*/[]) {
             break;
           }
         }
+      }
+      ImGui::End();
+    }
+
+    if (show_output_window) {
+      ImGui::Begin("Output Log");
+      for (const auto& [message, level] : output_log) {
+        ImVec4 color;
+        switch (level) {
+          case LogLevel::kInfo:
+            color = ImVec4(1.0F, 1.0F, 1.0F, 1.0F);
+            break;
+          case LogLevel::kWarning:
+            color = ImVec4(1.0F, 1.0F, 0.0F, 1.0F);
+            break;
+          case LogLevel::kError:
+            color = ImVec4(1.0F, 0.0F, 0.0F, 1.0F);
+            break;
+          default:
+            color = ImVec4(1.0F, 1.0F, 1.0F, 1.0F);
+            break;
+        }
+        ImGui::TextColored(color, "%s", message.c_str());
+      }
+      if (ImGui::Button("Clear Info")) {
+        ClearAllInfo();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Clear All")) {
+        output_log.clear();
       }
       ImGui::End();
     }
