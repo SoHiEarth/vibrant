@@ -75,6 +75,7 @@ bool show_edit_window = true;
 bool show_output_window = false;
 bool show_tutorial_window = false;
 bool show_documentation_window = false;
+bool show_demo_window = false;
 
 void GetInspector(AttributeData& data) {
   std::visit(
@@ -197,6 +198,18 @@ int main(int /*argc*/, char* /*argv*/[]) {
   }
   glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
   core::Initialize(core::InitializeFlags::kImgui, window);
+  ImGuiIO& io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+  // window padding set to 20
+  ImGui::GetStyle().WindowBorderSize = 0.0F;
+  ImGui::GetStyle().WindowPadding = ImVec2(20.0F, 20.0F);
+  ImGui::GetStyle().FramePadding = ImVec2(9.0F, 4.0F);
+  ImGui::GetStyle().WindowRounding = 6;
+  ImGui::GetStyle().FrameRounding = 6;
+  ImGui::GetStyle().PopupRounding = 12;
+  ImGui::StyleColorsDark();
+  // Font
+  io.Fonts->AddFontFromFileTTF("assets/poppins/Poppins-Regular.ttf", 16.0F);
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
@@ -406,10 +419,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
     ImGui::BeginMainMenuBar();
     if (ImGui::BeginMenu("File")) {
       // Due for implementation
-      if (ImGui::MenuItem("New", nullptr)) {
+      if (ImGui::MenuItem("New")) {
         scene.objects.clear();
       }
-      if (ImGui::MenuItem("Open", nullptr)) {
+      if (ImGui::MenuItem("Open")) {
         const char* filters[] = {"*.xml"};
         auto* path = tinyfd_openFileDialog("Select Scene", "", 1, filters,
                                            "Scene Files", 0);
@@ -421,7 +434,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
           }
         }
       }
-      if (ImGui::MenuItem("Save", nullptr)) {
+      if (ImGui::MenuItem("Save")) {
         const char* filters[] = {"*.xml"};
         auto* path = tinyfd_saveFileDialog("Save Scene", "scene.xml", 1, filters,
                                            "Scene Files");
@@ -439,6 +452,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
       ImGui::MenuItem("Edit Window", nullptr, &show_edit_window);
       ImGui::MenuItem("Attribute Templates", nullptr, &show_template_window);
       ImGui::MenuItem("Output Log", nullptr, &show_output_window);
+#ifndef NDEBUG
+      ImGui::MenuItem("ImGui Demo Window", nullptr, &show_demo_window);
+#endif
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Help")) {
@@ -448,7 +464,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
     }
     ImGui::EndMainMenuBar();
 
-    TutorialWindow(show_tutorial_window);
+    if (show_demo_window) {
+      ImGui::ShowDemoWindow(&show_demo_window);
+    }
+
+    TutorialWindow(show_tutorial_window, scene);
 
     if (show_documentation_window) {
       DocumentationWindow();
@@ -457,7 +477,6 @@ int main(int /*argc*/, char* /*argv*/[]) {
     if (show_edit_window) {
       std::vector<std::shared_ptr<Object>> objects_to_erase;
       ImGui::Begin("Edit");
-      ImGui::ColorEdit3("Clear Color", glm::value_ptr(clear_color));
       if (ImGui::Button("New Object")) {
         auto object = std::make_shared<Object>();
         object->SetAttribute("transform.position", glm::vec3(0.0F, 0.0F, 0.0F));
@@ -466,9 +485,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
         scene.objects.push_back(object);
       }
       for (auto& object : scene.objects) {
+        ImGui::PushID(object.get());
         if (ImGui::CollapsingHeader(std::format("Object {}", object->name).c_str(),
                                     ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::PushID(object.get());
         if (ImGui::Button("Delete")) {
           objects_to_erase.push_back(object);
         }
@@ -558,8 +577,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
           }
           ImGui::EndPopup();
         }
-        ImGui::PopID();
       }
+        ImGui::PopID();
       }
       for (const auto& object : objects_to_erase) {
         for (auto it = scene.objects.begin(); it != scene.objects.end(); it++) {
