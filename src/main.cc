@@ -160,7 +160,7 @@ void SetLightUniforms(std::vector<std::shared_ptr<Object>>& lights,
     auto prefix = std::format("lights[{}].", i);
     glUniform1i(glGetUniformLocation(shader, (prefix + "type").c_str()), type);
     glUniform3fv(glGetUniformLocation(shader, (prefix + "position").c_str()), 1,
-                 glm::value_ptr(position));
+                glm::value_ptr(position));
     glUniform1f(glGetUniformLocation(shader, (prefix + "intensity").c_str()),
                 intensity);
     glUniform3fv(glGetUniformLocation(shader, (prefix + "color").c_str()), 1,
