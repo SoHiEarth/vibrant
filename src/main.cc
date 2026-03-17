@@ -246,10 +246,20 @@ int main(int /*argc*/, char* /*argv*/[]) {
   auto sprite_vertex_buffer = CreateBufferObject(sprite_vertices_create_info);
   auto sprite_indices_buffer = CreateBufferObject(sprite_indices_create_info);
   auto sprite_vertex_array_create_info = VertexArrayCreateInfo{
-      .attributes = {{0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                      static_cast<void*>(nullptr)},
-                     {1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                      (void*)(3 * sizeof(float))}},
+      .attributes = {{
+        .index = 0,
+        .size = 3,
+        .type = GL_FLOAT,
+        .normalized = GL_FALSE,
+        .stride = 5 * sizeof(float),
+        .pointer = static_cast<void*>(nullptr)},
+                     {
+        .index = 1,
+        .size = 2,
+        .type = GL_FLOAT,
+        .normalized = GL_FALSE,
+        .stride = 5 * sizeof(float),
+        .pointer = (void*)(3 * sizeof(float))}},
       .buffers = {
           {GL_ARRAY_BUFFER, sprite_vertex_buffer},
           {GL_ELEMENT_ARRAY_BUFFER, sprite_indices_buffer},

@@ -18,8 +18,8 @@ std::vector<unsigned int> loaded_vertex_arrays;
 std::vector<unsigned int> loaded_buffers;
 
 // Shader-related functions
-
-static std::string ReadFile(const std::filesystem::path& path) {
+namespace {
+std::string ReadFile(const std::filesystem::path& path) {
   std::ifstream file(path);
   if (!file.is_open()) {
     throw std::runtime_error("Failed to open file: " + path.string());
@@ -30,7 +30,7 @@ static std::string ReadFile(const std::filesystem::path& path) {
   return stream.str();
 }
 
-static unsigned int CompileShader(int shader_type, std::string source) {
+unsigned int CompileShader(int shader_type, std::string source) {
   auto shader = glCreateShader(shader_type);
   const char* source_data = source.data();
   glShaderSource(shader, 1, &source_data, nullptr);
@@ -44,6 +44,7 @@ static unsigned int CompileShader(int shader_type, std::string source) {
                              std::string(log.data()));
   }
   return shader;
+}
 }
 
 unsigned int LoadShaderProgram(

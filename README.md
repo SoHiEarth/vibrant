@@ -13,6 +13,7 @@ A rendering engine focused on 2D lighting and the use of normals to create beaut
 `pugixml`
   * Example
 `sudo pacman -Sy pugixml` (For Arch Linux)
+You will also need `kdialog` OR `xdialog` OR `applescript` for UI input. If you lack any of these, tinyfiledialogs will fall back to console input.
 2. Download the latest Linux release from the [releases page](https://github.com/SoHiEarth/vibrant/releases)
 3. cd into the folder and run the executable
 `cd /path/to/vibrant/executable;./vibrant`
