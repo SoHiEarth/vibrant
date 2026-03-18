@@ -26,6 +26,7 @@
 #include "helpers.h"
 #include "scene.h"
 #include "texture.h"
+#include "description.h"
 
 std::map<std::string, LogLevel> output_log;
 
@@ -74,21 +75,32 @@ bool show_tutorial_window = false;
 bool show_documentation_window = false;
 bool show_demo_window = false;
 
-void GetInspector(AttributeData& data) {
+void Hover(std::string_view text) {
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip(text.data());
+  }
+}
+
+void GetInspector(AttributeData& data, std::string hover_text = "") {
   std::visit(
       [&](auto& v) {
         using T = std::decay_t<decltype(v)>;
         if constexpr (std::is_same_v<T, int>) {
           ImGui::InputInt("Value", &v);
+          Hover(hover_text);
         } else if constexpr (std::is_same_v<T, float>) {
           ImGui::InputFloat("Value", &v);
+          Hover(hover_text);
         } else if constexpr (std::is_same_v<T, glm::vec2>) {
           ImGui::InputFloat2("Value", glm::value_ptr(v));
+          Hover(hover_text);
         } else if constexpr (std::is_same_v<T, glm::vec3>) {
           ImGui::InputFloat3("Value", glm::value_ptr(v));
+          Hover(hover_text);
         } else if constexpr (std::is_same_v<T, Texture>) {
           ImGui::Image(v.id, ImVec2(64, 64));
-          if (ImGui::Button("Change Texture")) {
+          Hover(hover_text);
+          if (ImGui::Button("Load Texture")) {
             const char* filters[] = {"*.png", "*.jpg", "*.jpeg", "*.bmp"};
             auto* path = tinyfd_openFileDialog("Select Texture", "", 4, filters,
                                                "Image Files", 0);
@@ -100,8 +112,13 @@ void GetInspector(AttributeData& data) {
               }
             }
           }
+          if (ImGui::Button("Remove Texture")) {
+            glDeleteTextures(1, &v.id);
+            v.id = 0;
+          }
         } else {
           ImGui::Text("Unknown Attribute Type");
+          Hover(hover_text);
         }
       },
       data);
@@ -516,7 +533,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         for (auto& attr : object->attributes) {
           ImGui::PushID(&attr);
           ImGui::InputText("Attribute Name", &attr.first);
-          GetInspector(attr.second);
+          GetInspector(attr.second, kDescriptionMap.contains(attr.first) ? kDescriptionMap.at(attr.first) : "");
           ImGui::PopID();
         }
         if (ImGui::Button("Add Attribute")) {

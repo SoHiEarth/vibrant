@@ -22,6 +22,7 @@ target_sources(vibrant PRIVATE
   src/docs.cc
   src/tutorial.cc
   src/scene.cc
+  src/description.cc
 )
 target_include_directories(vibrant PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(vibrant PUBLIC
