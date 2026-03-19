@@ -86,16 +86,20 @@ void GetInspector(AttributeData& data, std::string hover_text = "") {
       [&](auto& v) {
         using T = std::decay_t<decltype(v)>;
         if constexpr (std::is_same_v<T, int>) {
-          ImGui::InputInt("Value", &v);
+          ImGui::SameLine();
+          ImGui::InputInt("##value", &v);
           Hover(hover_text);
         } else if constexpr (std::is_same_v<T, float>) {
-          ImGui::InputFloat("Value", &v);
+          ImGui::SameLine();
+          ImGui::InputFloat("##value", &v);
           Hover(hover_text);
         } else if constexpr (std::is_same_v<T, glm::vec2>) {
-          ImGui::InputFloat2("Value", glm::value_ptr(v));
+          ImGui::SameLine();
+          ImGui::InputFloat2("##value", glm::value_ptr(v));
           Hover(hover_text);
         } else if constexpr (std::is_same_v<T, glm::vec3>) {
-          ImGui::InputFloat3("Value", glm::value_ptr(v));
+          ImGui::SameLine();
+          ImGui::InputFloat3("##value", glm::value_ptr(v));
           Hover(hover_text);
         } else if constexpr (std::is_same_v<T, Texture>) {
           ImGui::Image(v.id, ImVec2(64, 64));
@@ -112,6 +116,7 @@ void GetInspector(AttributeData& data, std::string hover_text = "") {
               }
             }
           }
+          ImGui::SameLine();
           if (ImGui::Button("Remove Texture")) {
             glDeleteTextures(1, &v.id);
             v.id = 0;
@@ -532,8 +537,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
         ImGui::SeparatorText("Attributes");
         for (auto& attr : object->attributes) {
           ImGui::PushID(&attr);
-          ImGui::InputText("Attribute Name", &attr.first);
+          ImGui::PushItemWidth(ImGui::GetWindowWidth() / 2.5F);
+          ImGui::InputText("##name", &attr.first);
           GetInspector(attr.second, kDescriptionMap.contains(attr.first) ? kDescriptionMap.at(attr.first) : "");
+          ImGui::PopItemWidth();
           ImGui::PopID();
         }
         if (ImGui::Button("Add Attribute")) {
