@@ -1,5 +1,13 @@
+<div align="center">
+
 # Vibrant Engine
-A rendering engine focused on 2D lighting and the use of normals to create beautiful scenes.
+
+**A rendering engine focused on 2D lighting and the use of normals to create beautiful scenes.**
+
+</div>
+
+---
+
 ![](docs/screenshot.png)
 
 ## Features
@@ -9,7 +17,7 @@ A rendering engine focused on 2D lighting and the use of normals to create beaut
 
 ## Optimization
 
-Vibrant is optimized through and through, with the following notable optimization tricks used
+Vibrant is optimized through and through, with the following notable optimization tricks used:
 
 |                          Name                           | Perf. Before | Perf. After |
 |---------------------------------------------------------|--------------|-------------|
