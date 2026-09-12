@@ -7,6 +7,15 @@ A rendering engine focused on 2D lighting and the use of normals to create beaut
   * Normal Support
   * Framebuffer Scaling
 
+## Optimization
+
+Vibrant is optimized through and through, with the following notable optimization tricks used: (Tested with a scene with 10000 objects)
+
+|              Name              | Perf. Before | Perf. After |
+|--------------------------------|--------------|-------------|
+| Use of C++ (low level language)| ---          | ---         |
+| Optimized object structure     | 3.2 GB       | 1.9 GB      |
+
 ## Installation
 ### Linux
 1. Install dependencies
