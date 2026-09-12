@@ -12,8 +12,6 @@
 
 constexpr int log_size = 512;
 std::vector<std::shared_ptr<Framebuffer>> all_framebuffers;
-std::vector<std::pair<Transform, TexturePack>> sprite_objects;
-std::vector<std::pair<Transform, Light>> lights;
 std::vector<unsigned int> loaded_textures;
 std::vector<unsigned int> loaded_vertex_arrays;
 std::vector<unsigned int> loaded_buffers;

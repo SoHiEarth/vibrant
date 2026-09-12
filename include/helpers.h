@@ -1,6 +1,4 @@
 #pragma once
-#include "transform.h"
-#include "light.h"
 #include "opengl_objects.h"
 #include <GLFW/glfw3.h>
 
@@ -34,8 +32,6 @@ struct TextureCreateInfo {
 };
 
 extern std::vector<std::shared_ptr<Framebuffer>> all_framebuffers;
-extern std::vector<std::pair<Transform, TexturePack>> sprite_objects;
-extern std::vector<std::pair<Transform, Light>> lights;
 extern std::vector<unsigned int> loaded_textures;
 extern std::vector<unsigned int> loaded_vertex_arrays;
 extern std::vector<unsigned int> loaded_buffers;

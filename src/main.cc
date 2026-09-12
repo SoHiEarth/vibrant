@@ -2,6 +2,7 @@
 // CODE BLOCK: To stop clang from messing with my include
 #include <GLFW/glfw3.h>
 #include <imgui.h>
+#include <imgui_stdlib.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <glm/glm.hpp>
@@ -17,8 +18,9 @@
 #include <tinyfiledialogs/tinyfiledialogs.h>
 #include "helpers.h"
 #include "core.h"
-constexpr glm::ivec2 default_window_size = { 800, 600 };
+#include "scene.h"
 
+constexpr glm::ivec2 default_window_size = { 800, 600 };
 constexpr std::array<float, 20> sprite_vertices = {
      0.5f,  0.5f, 0.0f, 1.0f, 1.0f,
      0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
@@ -35,6 +37,7 @@ constexpr std::array<unsigned int, 6> shared_indices = {
     0, 1, 3,
     1, 2, 3
 };
+Scene scene;
 
 void FramebufferResizeCallback(GLFWwindow* window, int w, int h) {
   for (auto& framebuffer : all_framebuffers) {
@@ -48,7 +51,6 @@ void FramebufferResizeCallback(GLFWwindow* window, int w, int h) {
   }
 }
 
-// Presents error, if any
 void PresentGlfwErrorInfo() {
   const char* error_desc;
   auto error = glfwGetError(&error_desc);
@@ -56,15 +58,28 @@ void PresentGlfwErrorInfo() {
     std::print("Error Description: {}\n", error_desc ? error_desc : "No Description Provided, gg.");
 }
 
-void SetLightUniforms(std::vector<std::pair<Transform, Light>>& lights, unsigned int shader) {
-  glUniform1i(glGetUniformLocation(shader, "light_count"), lights.size());
-  for (int i = 0; i < lights.size(); i++) {
-    glUniform1i(glGetUniformLocation(shader, std::format("lights[{}].type", i).c_str()), (int)lights.at(i).second.type);
-    glUniform3fv(glGetUniformLocation(shader, std::format("lights[{}].position", i).c_str()), 1, glm::value_ptr(lights.at(i).first.position));
-    glUniform1f(glGetUniformLocation(shader, std::format("lights[{}].intensity", i).c_str()), lights.at(i).second.intensity);
-    glUniform3fv(glGetUniformLocation(shader, std::format("lights[{}].color", i).c_str()), 1, glm::value_ptr(lights.at(i).second.color));
-    glUniform1f(glGetUniformLocation(shader, std::format("lights[{}].falloff", i).c_str()), lights.at(i).second.radial_falloff);
-    glUniform1f(glGetUniformLocation(shader, std::format("lights[{}].volumetric_intensity", i).c_str()), lights.at(i).second.volumetric_intensity);
+void SetLightUniforms(std::vector<std::shared_ptr<Object>>& lights, unsigned int shader) {
+  auto light_objects = std::vector<std::shared_ptr<Object>>{};
+  for (auto& object : lights) {
+    if (object->HasTag("light")) {
+      light_objects.push_back(object);
+    }
+  }
+  glUniform1i(glGetUniformLocation(shader, "light_count"), light_objects.size());
+  for (int i = 0; i < light_objects.size(); i++) {
+    auto type = *(int*)light_objects[i]->GetAttribute("light.type");
+    auto position = *(glm::vec3*)light_objects[i]->GetAttribute("transform.position");
+    auto intensity = *(float*)light_objects[i]->GetAttribute("light.intensity");
+    auto color = *(glm::vec3*)light_objects[i]->GetAttribute("light.color");
+    auto falloff = *(float*)light_objects[i]->GetAttribute("light.radial_falloff");
+    auto volumetric_intensity = *(float*)light_objects[i]->GetAttribute("light.volumetric_intensity");
+    auto prefix = std::format("lights[{}].", i);
+    glUniform1i(glGetUniformLocation(shader, (prefix + "type").c_str()), type);
+    glUniform3fv(glGetUniformLocation(shader, (prefix + "position").c_str()), 1, glm::value_ptr(position));
+    glUniform1f(glGetUniformLocation(shader, (prefix + "intensity").c_str()), intensity);
+    glUniform3fv(glGetUniformLocation(shader, (prefix + "color").c_str()), 1, glm::value_ptr(color));
+    glUniform1f(glGetUniformLocation(shader, (prefix + "falloff").c_str()), falloff);
+    glUniform1f(glGetUniformLocation(shader, (prefix + "volumetric_intensity").c_str()), volumetric_intensity);
   }
 }
 
@@ -86,21 +101,19 @@ unsigned int LoadTexture(std::string path) {
 
 int main(int argc, char *argv[]) {
   core::Initialize(core::InitializeFlags::OPENGL, nullptr);
-  // Make the window really small first, then resize it to normal size
-    // This ensures GLFW calls the resize callbacks
-    auto window = glfwCreateWindow(default_window_size.x, default_window_size.y, "Vibrant", NULL, NULL);
-    if (window == NULL) {
-      std::print("Something wrong happened with the window... :(\n");
-      PresentGlfwErrorInfo();
-      glfwTerminate();
-      return EXIT_FAILURE;
-    }
-    glfwMakeContextCurrent(window);
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-      std::print("Something wrong happened with glad :( (Trying again probably won't fix this)\n");
-      glfwTerminate();
-      return EXIT_FAILURE;
-    }
+  auto window = glfwCreateWindow(default_window_size.x, default_window_size.y, "Vibrant", NULL, NULL);
+  if (window == NULL) {
+    std::print("Something wrong happened with the window... :(\n");
+    PresentGlfwErrorInfo();
+    glfwTerminate();
+    return EXIT_FAILURE;
+  }
+  glfwMakeContextCurrent(window);
+  if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    std::print("Something wrong happened with glad :( (Trying again probably won't fix this)\n");
+    glfwTerminate();
+    return EXIT_FAILURE;
+  }
   glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
   core::Initialize(core::InitializeFlags::IMGUI, window);
 
@@ -217,14 +230,19 @@ int main(int argc, char *argv[]) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(sprite_shader);
     glBindVertexArray(sprite_vertex_array);
-    for (auto& [transform, texture_pack] : sprite_objects) {
-      model = glm::translate(glm::mat4(1.0f), transform.position);
-      model = glm::rotate(model, glm::radians(transform.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-      model = glm::scale(model, transform.scale);
+    for (auto& object : scene.objects) {
+      if (!object->HasTag("sprite")) continue;
+      auto position = *(glm::vec3*)object->GetAttribute("transform.position");
+      auto scale = *(glm::vec3*)object->GetAttribute("transform.scale");
+      auto rotation = *(float*)object->GetAttribute("transform.rotation");
+      auto color = *(unsigned int*)object->GetAttribute("texture.color");
+      model = glm::translate(glm::mat4(1.0f), position);
+      model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+      model = glm::scale(model, scale);
       glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, texture_pack.color);
+      glBindTexture(GL_TEXTURE_2D, color);
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
 
@@ -234,28 +252,32 @@ int main(int argc, char *argv[]) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(sprite_shader);
     glBindVertexArray(sprite_vertex_array);
-    for (auto& [transform, texture_pack ] : sprite_objects) {
-      model = glm::translate(glm::mat4(1.0f), transform.position);
-      model = glm::rotate(model, glm::radians(transform.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-      model = glm::scale(model, transform.scale);
+    for (auto& object : scene.objects) {
+      if (!object->HasTag("sprite")) continue;
+      auto position = *(glm::vec3*)object->GetAttribute("transform.position");
+      auto scale = *(glm::vec3*)object->GetAttribute("transform.scale");
+      auto rotation = *(float*)object->GetAttribute("transform.rotation");
+      unsigned int texture = *(unsigned int*)object->GetAttribute("texture.normal");
+      model = glm::translate(glm::mat4(1.0f), position);
+      model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 0.0f, 1.0f));
+      model = glm::scale(model, scale);
       glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, texture_pack.normal);
+      glBindTexture(GL_TEXTURE_2D, texture);
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
 
-    // Draw final buffer
     glBindFramebuffer(GL_FRAMEBUFFER, deferred_buffer->id);
     glViewport(0, 0, deferred_buffer->size.x, deferred_buffer->size.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(deferred_shader);
-    SetLightUniforms(lights, deferred_shader);
+    SetLightUniforms(scene.objects, deferred_shader);
     glUniform1i(glGetUniformLocation(deferred_shader, "color_buffer"), 0);
-    glUniform1i(glGetUniformLocation(deferred_shader, "normal_buffer"), 1);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, color_buffer->colorbuffer);
+    glUniform1i(glGetUniformLocation(deferred_shader, "normal_buffer"), 1);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, normal_buffer->colorbuffer);
     glBindVertexArray(deferred_vertex_attrib);
@@ -273,68 +295,35 @@ int main(int argc, char *argv[]) {
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     {
-      ImGui::Begin("Inspector");
-      if (ImGui::Button("New Light")) {
-        lights.push_back({});
+      ImGui::Begin("Scene Hierarchy");
+      if (ImGui::Button("New Object")) {
+        auto object = std::make_shared<Object>();
+        object->SetAttribute("transform.position", (void*)(new glm::vec3(0.0f, 0.0f, 0.0f)));
+        object->SetAttribute("transform.scale", (void*)(new glm::vec3(1.0f, 1.0f, 1.0f)));
+        object->SetAttribute("transform.rotation", (void*)(new float(0.0f)));
+        scene.objects.push_back(object);
       }
-      ImGui::SameLine();
-      if (ImGui::Button("New Sprite")) {
-        sprite_objects.push_back({});
-      }
-      int light_counter = 0;
-      for (auto& [transform, light] : lights) {
-        light_counter++;
-        ImGui::PushID(light_counter);
-        ImGui::SeparatorText("Light Object");
-        int type = static_cast<int>(light.type);
-        ImGui::InputInt("Light Type (0: Global, 1: Point)", &type);
-        light.type = static_cast<LightType>(type);
-        ImGui::DragFloat3("Light Position", glm::value_ptr(transform.position), 0.1f);
-        ImGui::DragFloat("Intensity", &light.intensity, 0.1f);
-        ImGui::ColorEdit3("Color", glm::value_ptr(light.color));
-        ImGui::DragFloat("Falloff", &light.radial_falloff, 0.1f);
-        ImGui::DragFloat("Volumetric Intensity", &light.volumetric_intensity, 0.1f);
-        ImGui::PopID();
-      }
-      int sprite_counter = 0;
-      for (auto& [transform, texture_pack] : sprite_objects) {
-        sprite_counter++;
-        ImGui::PushID(sprite_counter);
-        ImGui::SeparatorText("Sprite Object");
-        ImGui::DragFloat3("Position", glm::value_ptr(transform.position), 0.1f);
-        ImGui::DragFloat3("Scale", glm::value_ptr(transform.scale), 0.1f);
-        ImGui::DragFloat("Rotation", &transform.rotation, 0.1f);
-        ImGui::Image((ImTextureID)(intptr_t)texture_pack.color, ImVec2(50, 50));
-        ImGui::SameLine();
-        ImGui::Image((ImTextureID)(intptr_t)texture_pack.normal, ImVec2(50, 50));
-        if (ImGui::Button("Load")) {
-          auto color_path = tinyfd_openFileDialog(
-            "Select Color Texture",
-            "",
-            0,
-            NULL,
-            NULL,
-            0
-          );
-          if (color_path) {
-            texture_pack.color = LoadTexture(color_path);
-          }
-          auto normal_path = tinyfd_openFileDialog(
-            "Select Normal Texture",
-            "",
-            0,
-            NULL,
-            NULL,
-            0
-          );
-          if (normal_path) {
-            texture_pack.normal = LoadTexture(normal_path);
-          }
+      for (auto& object : scene.objects) {
+        ImGui::Text("Object");
+        ImGui::SeparatorText("Tags");
+        for (auto& tag : object->tags) {
+          ImGui::InputText("Tag", &tag);
         }
-        ImGui::PopID();
+        if (ImGui::Button("Add Tag")) {
+          object->tags.push_back("guten tag");
+        }
+        ImGui::SeparatorText("Attributes");
+        for (auto& attr : object->attributes) {
+          ImGui::PushID(&attr);
+          ImGui::InputText("Attribute Name", &attr.first);
+          // Figure out a way to resolve the attribute type here
+          ImGui::Text("Value: %p", attr.second);
+          ImGui::PopID();
+        }
+        if (ImGui::Button("Add Attribute")) {
+          object->SetAttribute("new attribute", (void*)(new int(0)));
+        }
       }
-      ImGui::Image((ImTextureID)(intptr_t)color_buffer->colorbuffer, ImVec2(200, 200));
-      ImGui::Image((ImTextureID)(intptr_t)normal_buffer->colorbuffer, ImVec2(200, 200));
       ImGui::End();
     }
 
@@ -349,6 +338,7 @@ int main(int argc, char *argv[]) {
   glDeleteBuffers(loaded_buffers.size(), loaded_buffers.data());
   glDeleteProgram(sprite_shader);
   glDeleteProgram(deferred_shader);
+  glDeleteProgram(combine_shader);
   glDeleteTextures(loaded_textures.size(), loaded_textures.data());
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
