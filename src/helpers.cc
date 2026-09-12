@@ -65,13 +65,17 @@ unsigned int LoadShaderProgram(std::vector<std::pair<unsigned int, std::string>>
 }
 
 // Framebuffer-related functions
-std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window) {
+std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window, float scale) {
   std::shared_ptr<Framebuffer> framebuffer = std::make_shared<Framebuffer>();
-  glGenFramebuffers(1, &framebuffer->id);
-  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
+  framebuffer->scale = scale;
   int width, height;
   glfwGetFramebufferSize(window, &width, &height);
-  auto create_info = TextureCreateInfo{ width, height, 3, nullptr };
+  framebuffer->size = glm::ivec2(std::max(1, (int)(width * scale)),
+                                 std::max(1, (int)(height * scale)));
+  glGenFramebuffers(1, &framebuffer->id);
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
+  
+  auto create_info = TextureCreateInfo{ framebuffer->size.x, framebuffer->size.y, 3, nullptr };
   framebuffer->colorbuffer = CreateTextureObject(create_info);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebuffer->colorbuffer, 0);
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {

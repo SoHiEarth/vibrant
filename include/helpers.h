@@ -51,4 +51,4 @@ template <typename T> unsigned int CreateBufferObject(BufferCreateInfo<T> info) 
 }
 unsigned int CreateTextureObject(TextureCreateInfo info);
 unsigned int LoadShaderProgram(std::vector<std::pair<unsigned int, std::string>> shader_paths);
-std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window);
+std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window, float scale);
