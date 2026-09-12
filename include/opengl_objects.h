@@ -1,4 +1,6 @@
-#pragma once
+#ifndef OPENGL_OBJECTS_H
+#define OPENGL_OBJECTS_H
+
 #include <glm/glm.hpp>
 
 struct TexturePack {
@@ -12,3 +14,5 @@ struct Framebuffer {
   unsigned int colorbuffer;
   unsigned int depthbuffer;
 };
+
+#endif  // OPENGL_OBJECTS_H

@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.21)
 project(vibrant)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
@@ -15,6 +17,7 @@ target_sources(vibrant PRIVATE
   src/main.cc
   src/core.cc
   src/helpers.cc
+  src/object.cc
 )
 target_include_directories(vibrant PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(vibrant PUBLIC
