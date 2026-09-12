@@ -1,22 +1,33 @@
 <?xml version="1.0"?>
-<scene>
-	<object>
-		<attribute name="transform.position" type="vec3" value="0.000000,0.000000,0.000000" />
-		<attribute name="transform.scale" type="vec3" value="1.000000,1.000000,1.000000" />
-		<attribute name="transform.rotation" type="float" value="0.000000" />
-		<attribute name="light.type" type="int" value="1" />
-		<attribute name="light.intensity" type="float" value="0.500000" />
-		<attribute name="light.color" type="vec3" value="1.000000,1.000000,1.000000" />
-		<attribute name="light.radial_falloff" type="float" value="1.000000" />
-		<attribute name="light.volumetric_intensity" type="float" value="1.000000" />
-		<tag name="light" />
-	</object>
-	<object>
-		<attribute name="transform.position" type="vec3" value="0.000000,0.000000,0.000000" />
-		<attribute name="transform.scale" type="vec3" value="15.000000,15.000000,5.000000" />
-		<attribute name="transform.rotation" type="float" value="0.000000" />
-		<attribute name="texture.color" type="texture" value="assets/color.png" />
-		<attribute name="texture.normal" type="texture" value="assets/normal.png" />
-		<tag name="sprite" />
-	</object>
-</scene>
+<tutorial>
+	<step label="1. Basic Architecture">
+		<![CDATA[# Understanding Vibrant's Architecture
+## Basic Structures
+  * Tags
+Tags define how an object should be handled by systems. For example, a "sprite" tag will make the rendering system process the object as a sprite, therefore rendering it if it is valid.
+  * Attributes
+Attributes define a property of an object. The system will then identify values based on the attribute identifier, and process them for optimal results.
+  * Attribute Templates
+Templates are a one-click method to register many attributes on a object. For example, the "light" template applies a valid light configuration to a object.
+  * Object
+A container of attributes and tags.]]>
+	</step>
+	<step label="2. Interface">
+		<![CDATA[# Menu Bar
+## File
+  * New, Open, Save
+Pretty straightforward. Level I/O utilities.
+## View
+  * Edit Window
+The main editor window. Control objects, attributes, and tags from here.
+  * Attribute Templates Window
+Load, modify and save attribute templates for later use.
+  * Output Log
+Info, warnings, and errors collected through the lifecycle of the program.
+## Help
+  * Tutorial
+Opens this tutorial window.
+  * Documentation
+A one-stop reference for the functions of Vibrant.]]>
+	</step>
+</tutorial>
