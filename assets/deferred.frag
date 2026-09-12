@@ -2,7 +2,7 @@
 
 struct Light {
   int type; // 0: Global, 1: Point
-  vec2 position;
+  vec3 position;
   float intensity;
   vec3 color;
   float falloff;
@@ -25,16 +25,14 @@ void main() {
   vec3 albedo = sample.rgb;
   vec3 normal = texture(normal_buffer, TexCoord).rgb * 2.0 - 1.0;
   normal = normalize(normal);
-  FragColor = vec4(albedo, 0.5f);
-  
   vec3 total_lighting = vec3(0.0);
   for (int i = 0; i < light_count && i < MAX_LIGHTS; i++) {
     if (lights[i].type == 0) {
       total_lighting += albedo * lights[i].color * lights[i].intensity;
     }
     else if (lights[i].type == 1) {
-      vec2 light_offset = lights[i].position - TexCoord;
-      vec3 light_dir = normalize(vec3(light_offset, 0.0));
+      vec2 light_offset = lights[i].position.xy - TexCoord;
+      vec3 light_dir = normalize(vec3(light_offset, lights[i].position.z));
       float distance = length(light_offset);
       float attenuation = lights[i].intensity / (1.0 + lights[i].falloff * distance * distance);
       attenuation = max(attenuation, 0.0);

@@ -11,30 +11,13 @@
 #include <stb_image.h>
 #include <print>
 #include <array>
-#include <fstream>
-#include <sstream>
 #include <filesystem>
 #include <string>
 #include <format>
-#include "light.h"
-
-struct Transform {
-  glm::vec3 position;
-  glm::vec3 scale;
-  float rotation;
-};
-
-struct TexturePack {
-  unsigned int color, normal;
-};
-
-struct Framebuffer {
-  unsigned int id;
-  unsigned int colorbuffer;
-};
-
+#include "helpers.h"
+#include "core.h"
 constexpr glm::ivec2 default_window_size = { 800, 600 };
-constexpr int log_size = 512;
+
 constexpr std::array<float, 20> sprite_vertices = {
      0.5f,  0.5f, 0.0f, 1.0f, 1.0f,
      0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
@@ -51,59 +34,7 @@ constexpr std::array<unsigned int, 6> shared_indices = {
     0, 1, 3,
     1, 2, 3
 };
-std::vector<std::shared_ptr<Framebuffer>> all_framebuffers;
-std::vector<std::pair<Transform, TexturePack>> sprite_objects;
-std::vector<std::pair<Transform, Light>> lights;
-std::vector<unsigned int> loaded_textures;
-std::vector<unsigned int> loaded_vertex_arrays;
-std::vector<unsigned int> loaded_buffers;
 
-std::string ReadFile(std::filesystem::path path) {
-  std::ifstream file(path);
-  if (!file.is_open()) {
-    throw std::runtime_error("Failed to open file: " + path.string());
-  }
-  std::stringstream stream;
-  stream << file.rdbuf();
-  file.close();
-  return stream.str();
-}
-
-unsigned int CompileShader(int shader_type, std::string source) {
-  auto shader = glCreateShader(shader_type);
-  const char* source_data = source.data();
-  glShaderSource(shader, 1, &source_data, nullptr);
-  glCompileShader(shader);
-  int success;
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-  if (success == 0) {
-    std::array<char, log_size> log{};
-    glGetShaderInfoLog(shader, log_size, nullptr, log.data());
-    throw std::runtime_error("Shader compilation failed: " + std::string(log.data()));
-  }
-  return shader;
-}
-
-unsigned int LoadShaderProgram(std::string vertex_path, std::string fragment_path) {
-  auto vertex = CompileShader(GL_VERTEX_SHADER, ReadFile(vertex_path)),
-       fragment = CompileShader(GL_FRAGMENT_SHADER, ReadFile(fragment_path));
-  auto shader = glCreateProgram();
-  glAttachShader(shader, vertex);
-  glAttachShader(shader, fragment);
-  glLinkProgram(shader);
-  int success;
-  std::array<char, log_size> log{};
-  glGetProgramiv(shader, GL_LINK_STATUS, &success);
-  if (success == 0) {
-    glGetProgramInfoLog(shader, log_size, nullptr, log.data());
-    throw std::runtime_error("Shader program link failed: " + std::string(log.data()));
-  }
-  glDeleteShader(vertex);
-  glDeleteShader(fragment);
-  return shader;
-}
-
-std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window);
 // This function won't store the value of new window size as a global variable
 void WindowResizeCallback(GLFWwindow* window, int w, int h) {
   glViewport(0, 0, w, h);
@@ -129,115 +60,12 @@ void SetLightUniforms(std::vector<std::pair<Transform, Light>>& lights, unsigned
   glUniform1i(glGetUniformLocation(shader, "light_count"), lights.size());
   for (int i = 0; i < lights.size(); i++) {
     glUniform1i(glGetUniformLocation(shader, std::format("lights[{}].type", i).c_str()), (int)lights.at(i).second.type);
-    glUniform2fv(glGetUniformLocation(shader, std::format("lights[{}].position", i).c_str()), 1, glm::value_ptr(lights.at(i).first.position));
+    glUniform3fv(glGetUniformLocation(shader, std::format("lights[{}].position", i).c_str()), 1, glm::value_ptr(lights.at(i).first.position));
     glUniform1f(glGetUniformLocation(shader, std::format("lights[{}].intensity", i).c_str()), lights.at(i).second.intensity);
     glUniform3fv(glGetUniformLocation(shader, std::format("lights[{}].color", i).c_str()), 1, glm::value_ptr(lights.at(i).second.color));
     glUniform1f(glGetUniformLocation(shader, std::format("lights[{}].falloff", i).c_str()), lights.at(i).second.radial_falloff);
     glUniform1f(glGetUniformLocation(shader, std::format("lights[{}].volumetric_intensity", i).c_str()), lights.at(i).second.volumetric_intensity);
   }
-}
-
-struct VertexAttributeCreateInfo {
-  unsigned int index;
-  int size;
-  unsigned int type;
-  bool normalized;
-  int stride;
-  void* pointer;
-};
-
-struct VertexArrayCreateInfo {
-  std::vector<VertexAttributeCreateInfo> attributes;
-  std::vector<std::pair<unsigned int, unsigned int>> buffers;
-};
-
-unsigned int CreateVertexArrayObject(VertexArrayCreateInfo info) {
-  unsigned int vao;
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
-  for (auto& [type, buffer] : info.buffers) {
-    glBindBuffer(type, buffer);
-  }
-  for (auto& attrib : info.attributes) {
-    glVertexAttribPointer(attrib.index, attrib.size, attrib.type, attrib.normalized,
-                          attrib.stride, attrib.pointer);
-    glEnableVertexAttribArray(attrib.index);
-  }
-  loaded_vertex_arrays.push_back(vao);
-  return vao;
-}
-
-template <typename T>
-struct BufferCreateInfo {
-  unsigned int type; // GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER, GL_UNIFORM_BUFFER, etc.
-  unsigned int usage; // GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.
-  size_t size; // Size in bytes
-  const T* data; // Data
-};
-
-template <typename T>
-unsigned int CreateBufferObject(BufferCreateInfo<T> info) {
-  unsigned int buffer;
-  glGenBuffers(1, &buffer);
-  glBindBuffer(info.type, buffer);
-  glBufferData(info.type, info.size, info.data, info.usage);
-  loaded_buffers.push_back(buffer);
-  return buffer;
-}
-
-struct TextureCreateInfo {
-  int width;
-  int height;
-  int channels;
-  unsigned char* data;
-};
-
-unsigned int CreateTextureObject(TextureCreateInfo info) {
-  unsigned int texture;
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
-  GLenum format;
-  switch (info.channels) {
-    case 1:
-      format = GL_RED;
-      break;
-    case 2:
-      format = GL_RG;
-      break;
-    case 3:
-      format = GL_RGB;
-      break;
-    case 4:
-      format = GL_RGBA;
-      break;
-    default:
-      format = GL_RGB;
-      break;
-  }
-  glTexImage2D(GL_TEXTURE_2D, 0, format, info.width, info.height, 0, format, GL_UNSIGNED_BYTE, info.data);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  loaded_textures.push_back(texture);
-  return texture;
-}
-
-std::shared_ptr<Framebuffer> CreateFramebuffer(GLFWwindow* window) {
-  std::shared_ptr<Framebuffer> framebuffer = std::make_shared<Framebuffer>();
-  glGenFramebuffers(1, &framebuffer->id);
-  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
-  int width, height;
-  glfwGetFramebufferSize(window, &width, &height);
-  auto create_info = TextureCreateInfo{ width, height, 3, nullptr };
-  framebuffer->colorbuffer = CreateTextureObject(create_info);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebuffer->colorbuffer, 0);
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    throw std::runtime_error("Framebuffer is not complete...");
-  }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  all_framebuffers.push_back(framebuffer);
-  return framebuffer;
 }
 
 unsigned int LoadTexture(std::string path) {
@@ -257,37 +85,25 @@ unsigned int LoadTexture(std::string path) {
 }
 
 int main(int argc, char *argv[]) {
-  // Initializing stuff, move to seperate function sometime later
-  glfwInit();
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#ifdef __APPLE__
-  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-
+  core::Initialize(core::InitializeFlags::OPENGL, nullptr);
   // Make the window really small first, then resize it to normal size
-  // This ensures GLFW calls the resize callbacks
-  auto window = glfwCreateWindow(1, 1, "Vibrant", NULL, NULL);
-  if (window == NULL) {
-    std::print("Something wrong happened with the window... :(\n");
-    PresentGlfwErrorInfo();
-    glfwTerminate();
-    return EXIT_FAILURE;
-  }
-  glfwMakeContextCurrent(window);
-  if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    std::print("Something wrong happened with glad :( (Trying again probably won't fix this)\n");
-    glfwTerminate();
-    return EXIT_FAILURE;
-  }
+    // This ensures GLFW calls the resize callbacks
+    auto window = glfwCreateWindow(1, 1, "Vibrant", NULL, NULL);
+    if (window == NULL) {
+      std::print("Something wrong happened with the window... :(\n");
+      PresentGlfwErrorInfo();
+      glfwTerminate();
+      return EXIT_FAILURE;
+    }
+    glfwMakeContextCurrent(window);
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+      std::print("Something wrong happened with glad :( (Trying again probably won't fix this)\n");
+      glfwTerminate();
+      return EXIT_FAILURE;
+    }
   glfwSetWindowSizeCallback(window, WindowResizeCallback);
   glfwSetWindowSize(window, default_window_size.x, default_window_size.y);
-
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGui_ImplGlfw_InitForOpenGL(window, true);
-  ImGui_ImplOpenGL3_Init("#version 150");
+  core::Initialize(core::InitializeFlags::IMGUI, window);
 
   // Setting up GL objects
   auto color_buffer = CreateFramebuffer(window), normal_buffer = CreateFramebuffer(window);

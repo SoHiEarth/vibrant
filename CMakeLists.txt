@@ -12,6 +12,8 @@ add_executable(vibrant)
 target_compile_features(vibrant PRIVATE cxx_std_23)
 target_sources(vibrant PRIVATE
   src/main.cc
+  src/core.cc
+  src/helpers.cc
 )
 target_include_directories(vibrant PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(vibrant PUBLIC
