@@ -91,14 +91,17 @@ void TutorialWindow(bool& show, Scene& scene) {
         }
         show = false;  // close the tutorial window
       }
+      ImGui::SeparatorText("Test Scene!");
       ImGui::TextWrapped("Or, try a test scene! Click the button below to load it.");
       if (ImGui::Button("Load Test Scene")) {
         scene = LoadScene("tutorial_scene.xml");
       }
-      ImGui::TextWrapped("You can see that the textures aren't loaded correct."
-          "Try to fix that issue by loading the textures from the assets/ folder."
-          "texture.color should load assets/color.png, and texture.normal should load assets/normal.png"
-          "Try it out! If you get stuck, check the documentation for how to load textures.");
+      ImGui::SeparatorText("Tasks:");
+      ImGui::TextWrapped(
+          "As you can see,"
+          "The normals make the sprite look really dark."
+          "Try removing the normal texture by clicking the button."
+          "Try tweaking values, etc! If you get stuck, check the documentation for how to load textures.");
       ImGui::EndTabItem();
     }
     
