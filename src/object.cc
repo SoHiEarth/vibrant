@@ -1,6 +1,7 @@
 #include "object.h"
 #include <pugixml.hpp>
 #include <sstream>
+#include <iostream>
 
 namespace {
 std::vector<std::string> Split(std::string_view s, char delimiter) {
