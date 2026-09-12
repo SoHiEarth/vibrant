@@ -20,12 +20,32 @@
 #include <print>
 #include <string>
 #include <map>
-
+#include "docs.h"
+#include "tutorial.h"
 #include "core.h"
 #include "helpers.h"
 #include "scene.h"
+#include "texture.h"
 
 std::map<std::string, LogLevel> output_log;
+
+Texture LoadTexture(const std::string& path) {
+  if (!std::filesystem::exists(path)) {
+    throw std::runtime_error("Path does not exist");
+  }
+  int w;
+  int h;
+  int nr_channels;
+  auto* data = stbi_load(path.c_str(), &w, &h, &nr_channels, 0);
+  if (data) {
+    auto texture = CreateTextureObject(
+        {.width = w, .height = h, .channels = nr_channels, .data = data});
+    stbi_image_free(data);
+    return {.id=texture, .path=path};
+  }
+  stbi_image_free(data);
+  throw std::runtime_error("Failed to load texture");
+}
 
 namespace {
 void ClearAllInfo() {
@@ -50,28 +70,11 @@ constexpr std::array<unsigned int, 6> kSharedIndices = {0, 1, 3, 1, 2, 3};
 Scene scene;
 glm::vec3 clear_color = {0.1F, 0.1F, 0.1F};
 std::vector<AttributeTemplate> attribute_templates;
-bool show_demo_window = false;
 bool show_template_window = false;
 bool show_edit_window = true;
 bool show_output_window = false;
-
-unsigned int LoadTexture(const std::string& path) {
-  if (!std::filesystem::exists(path)) {
-    throw std::runtime_error("Path does not exist");
-  }
-  int w;
-  int h;
-  int nr_channels;
-  auto* data = stbi_load(path.c_str(), &w, &h, &nr_channels, 0);
-  if (data) {
-    auto texture = CreateTextureObject(
-        {.width = w, .height = h, .channels = nr_channels, .data = data});
-    stbi_image_free(data);
-    return texture;
-  }
-  stbi_image_free(data);
-  throw std::runtime_error("Failed to load texture");
-}
+bool show_tutorial_window = false;
+bool show_documentation_window = false;
 
 void GetInspector(AttributeData& data) {
   std::visit(
@@ -85,8 +88,8 @@ void GetInspector(AttributeData& data) {
           ImGui::InputFloat2("Value", glm::value_ptr(v));
         } else if constexpr (std::is_same_v<T, glm::vec3>) {
           ImGui::InputFloat3("Value", glm::value_ptr(v));
-        } else if constexpr (std::is_same_v<T, unsigned int>) {
-          ImGui::Image(v, ImVec2(64, 64));
+        } else if constexpr (std::is_same_v<T, Texture>) {
+          ImGui::Image(v.id, ImVec2(64, 64));
           if (ImGui::Button("Change Texture")) {
             const char* filters[] = {"*.png", "*.jpg", "*.jpeg", "*.bmp"};
             auto* path = tinyfd_openFileDialog("Select Texture", "", 4, filters,
@@ -174,6 +177,7 @@ void SetLightUniforms(std::vector<std::shared_ptr<Object>>& lights,
 }
 
 int main(int /*argc*/, char* /*argv*/[]) {
+  show_tutorial_window = !std::filesystem::exists("tutorial.txt");
   core::Initialize(core::InitializeFlags::kOpengl, nullptr);
   auto* window = glfwCreateWindow(kDefaultWindowSize.x, kDefaultWindowSize.y,
                                   "Vibrant", nullptr, nullptr);
@@ -319,9 +323,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
         output_log["Error retrieving transform attributes: " + std::string(e.what())] = LogLevel::kError;
         continue;
       }
-      unsigned int texture;
+      Texture texture;
       try {
-        texture = std::get<unsigned int>(object->GetAttribute("texture.color"));
+        texture = std::get<Texture>(object->GetAttribute("texture.color"));
       } catch (const std::runtime_error& e) {
         output_log["Error retrieving texture attribute: " + std::string(e.what())] = LogLevel::kError;
         continue;
@@ -334,7 +338,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                          GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, texture);
+      glBindTexture(GL_TEXTURE_2D, texture.id);
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
     }
 
@@ -356,9 +360,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
         output_log["Error retrieving transform attributes: " + std::string(e.what())] = LogLevel::kError;
         continue;
       }
-      unsigned int texture;
+      Texture texture;
       try {
-        texture = std::get<unsigned int>(object->GetAttribute("texture.normal"));
+        texture = std::get<Texture>(object->GetAttribute("texture.normal"));
       } catch (const std::runtime_error& e) {
         output_log["Error retrieving normal texture attribute: " + std::string(e.what())] = LogLevel::kError;
         continue;
@@ -371,7 +375,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                          GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, texture);
+      glBindTexture(GL_TEXTURE_2D, texture.id);
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
     }
 
@@ -402,19 +406,53 @@ int main(int /*argc*/, char* /*argv*/[]) {
     ImGui::BeginMainMenuBar();
     if (ImGui::BeginMenu("File")) {
       // Due for implementation
-      ImGui::MenuItem("New", nullptr, nullptr, false);
-      ImGui::MenuItem("Open", nullptr, nullptr, false);
-      ImGui::MenuItem("Save", nullptr, nullptr, false);
+      if (ImGui::MenuItem("New", nullptr)) {
+        scene.objects.clear();
+      }
+      if (ImGui::MenuItem("Open", nullptr)) {
+        const char* filters[] = {"*.xml"};
+        auto* path = tinyfd_openFileDialog("Select Scene", "", 1, filters,
+                                           "Scene Files", 0);
+        if (path) {
+          try {
+            scene = LoadScene(path);
+          } catch (const std::runtime_error& e) {
+            std::print("Error loading scene: {}\n", e.what());
+          }
+        }
+      }
+      if (ImGui::MenuItem("Save", nullptr)) {
+        const char* filters[] = {"*.xml"};
+        auto* path = tinyfd_saveFileDialog("Save Scene", "scene.xml", 1, filters,
+                                           "Scene Files");
+        if (path) {
+          try {
+            SaveScene(scene, path);
+          } catch (const std::runtime_error& e) {
+            std::print("Error saving scene: {}\n", e.what());
+          }
+        }
+      }
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("View")) {
       ImGui::MenuItem("Edit Window", nullptr, &show_edit_window);
-      ImGui::MenuItem("ImGui Demo Window", nullptr, &show_demo_window);
       ImGui::MenuItem("Attribute Templates", nullptr, &show_template_window);
       ImGui::MenuItem("Output Log", nullptr, &show_output_window);
       ImGui::EndMenu();
     }
+    if (ImGui::BeginMenu("Help")) {
+      ImGui::MenuItem("Tutorial", nullptr, &show_tutorial_window);
+      ImGui::MenuItem("Documentation", nullptr, &show_documentation_window);
+      ImGui::EndMenu();
+    }
     ImGui::EndMainMenuBar();
+
+    TutorialWindow(show_tutorial_window);
+
+    if (show_documentation_window) {
+      DocumentationWindow();
+    }
 
     if (show_edit_window) {
       std::vector<std::shared_ptr<Object>> objects_to_erase;
@@ -484,7 +522,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 object->SetAttribute("new attribute", glm::vec3(0.0F));
                 break;
               case 4:
-                object->SetAttribute("new attribute", 0U);
+                object->SetAttribute("new attribute", Texture{.id=0U, .path=""});
                 break;
               default:
                 break;
@@ -564,10 +602,6 @@ int main(int /*argc*/, char* /*argv*/[]) {
       ImGui::End();
     }
 
-    if (show_demo_window) {
-      ImGui::ShowDemoWindow(&show_demo_window);
-    }
-
     if (show_template_window) {
       std::vector<AttributeTemplate> templates_to_erase;
       ImGui::Begin("Attribute Templates");
@@ -609,7 +643,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
                                                         glm::vec4(0.0F));
                   break;
                 case 5:
-                  attr_template.attributes.emplace_back("new attribute", 0U);
+                  attr_template.attributes.emplace_back("new attribute", Texture{.id=0U, .path=""});
                   break;
                 default:
                   break;
@@ -629,11 +663,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
             GetInspector(attribute.second);
             ImGui::SameLine();
             if (ImGui::Button("Remove")) {
-              attr_template.attributes.erase(
-                  std::remove(attr_template.attributes.begin(),
-                              attr_template.attributes.end(),
-                              attribute),
-                  attr_template.attributes.end());
+              for (auto it = attr_template.attributes.begin();
+                   it != attr_template.attributes.end(); it++) {
+                if (it->first == attribute.first) {
+                  attr_template.attributes.erase(it);
+                  break;
+                }
+              }
             }
             ImGui::PopID();
           }

@@ -7,8 +7,8 @@
 		<Attribute name="light.radial_falloff" type="float" value="1.000000" />
 		<Attribute name="light.volumetric_intensity" type="float" value="1.000000" />
 	</Template>
-	<Template name="New Template">
-		<Attribute name="texture.color" type="uint" value="0" />
-		<Attribute name="texture.normal" type="uint" value="0" />
+	<Template name="Sprite">
+		<Attribute name="texture.color" type="texture" value="5,assets/color.png" />
+		<Attribute name="texture.normal" type="texture" value="6,assets/normal.png" />
 	</Template>
 </Attributes>

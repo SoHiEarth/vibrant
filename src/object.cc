@@ -60,10 +60,13 @@ std::vector<AttributeTemplate> attributes::LoadTemplates() {
               glm::vec4(std::stof(parts[0]), std::stof(parts[1]),
                         std::stof(parts[2]), std::stof(parts[3])));
         }
-      } else if (type == "uint") {
-        attr_template.attributes.emplace_back(attr_name,
-                                             static_cast<unsigned int>(
-                                                 std::stoul(value_str)));
+      } else if (type == "texture") {
+        auto parts = Split(value_str, ',');
+        if (parts.size() == 2) {
+          Texture texture{.id = static_cast<unsigned int>(std::stoul(parts[0])),
+                          .path = parts[1]};
+          attr_template.attributes.emplace_back(attr_name, texture);
+        }
       }
     }
 
@@ -111,10 +114,11 @@ void attributes::SaveTemplates(const std::vector<AttributeTemplate> &templates) 
             (std::to_string(v.x) + "," + std::to_string(v.y) + "," +
              std::to_string(v.z) + "," + std::to_string(v.w))
                 .c_str();
-      } else if (std::holds_alternative<unsigned int>(attr_data)) {
-        attr_node.append_attribute("type") = "uint";
+      } else if (std::holds_alternative<Texture>(attr_data)) {
+        Texture texture = std::get<Texture>(attr_data);
+        attr_node.append_attribute("type") = "texture";
         attr_node.append_attribute("value") =
-            std::to_string(std::get<unsigned int>(attr_data)).c_str();
+            (std::to_string(texture.id) + "," + texture.path).c_str();
       }
     }
   }
