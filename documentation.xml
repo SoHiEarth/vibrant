@@ -31,6 +31,7 @@ Controls the attenuation of the light. A large value means that the light is foc
 The volumetric intensity of the light.
 ** You can register these values from the "Light" template. **
 ## Sprite
+** You can load textures by pressing the "Load Texture" button in the editor. **
   * **texture.color** *unsigned int*
 The color texture.
   * **texture.normal** *unsigned int*
