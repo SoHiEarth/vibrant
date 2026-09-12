@@ -20,6 +20,38 @@
 #include "core.h"
 #include "scene.h"
 
+unsigned int LoadTexture(std::string path);
+
+void GetInspector(AttributeData& data) {
+  std::visit([&](auto& v) {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, int>) {
+      ImGui::InputInt("Value", &v);
+    } else if constexpr (std::is_same_v<T, float>) {
+      ImGui::InputFloat("Value", &v);
+    } else if constexpr (std::is_same_v<T, glm::vec2>) {
+      ImGui::InputFloat2("Value", glm::value_ptr(v));
+    } else if constexpr (std::is_same_v<T, glm::vec3>) {
+      ImGui::InputFloat3("Value", glm::value_ptr(v));
+    } else if constexpr (std::is_same_v<T, unsigned int>) {
+    ImGui::Image(v, ImVec2(64, 64));
+    if (ImGui::Button("Change Texture")) {
+      const char* filters[] = { "*.png", "*.jpg", "*.jpeg", "*.bmp" };
+      auto path = tinyfd_openFileDialog("Select Texture", "", 4, filters, "Image Files", 0);
+      if (path) {
+        try {
+          v = LoadTexture(std::string(path));
+        } catch (const std::runtime_error& e) {
+          std::print("Error loading texture: {}\n", e.what());
+        }
+      }
+    }
+    } else {
+      ImGui::Text("Unknown Attribute Type");
+    }
+  }, data);
+}
+
 constexpr glm::ivec2 default_window_size = { 800, 600 };
 constexpr std::array<float, 20> sprite_vertices = {
      0.5f,  0.5f, 0.0f, 1.0f, 1.0f,
@@ -67,12 +99,12 @@ void SetLightUniforms(std::vector<std::shared_ptr<Object>>& lights, unsigned int
   }
   glUniform1i(glGetUniformLocation(shader, "light_count"), light_objects.size());
   for (int i = 0; i < light_objects.size(); i++) {
-    auto type = *(int*)light_objects[i]->GetAttribute("light.type");
-    auto position = *(glm::vec3*)light_objects[i]->GetAttribute("transform.position");
-    auto intensity = *(float*)light_objects[i]->GetAttribute("light.intensity");
-    auto color = *(glm::vec3*)light_objects[i]->GetAttribute("light.color");
-    auto falloff = *(float*)light_objects[i]->GetAttribute("light.radial_falloff");
-    auto volumetric_intensity = *(float*)light_objects[i]->GetAttribute("light.volumetric_intensity");
+    auto type = std::get<int>(light_objects[i]->GetAttribute("light.type"));
+    auto position = std::get<glm::vec3>(light_objects[i]->GetAttribute("transform.position"));
+    auto intensity = std::get<float>(light_objects[i]->GetAttribute("light.intensity"));
+    auto color = std::get<glm::vec3>(light_objects[i]->GetAttribute("light.color"));
+    auto falloff = std::get<float>(light_objects[i]->GetAttribute("light.radial_falloff"));
+    auto volumetric_intensity = std::get<float>(light_objects[i]->GetAttribute("light.volumetric_intensity"));
     auto prefix = std::format("lights[{}].", i);
     glUniform1i(glGetUniformLocation(shader, (prefix + "type").c_str()), type);
     glUniform3fv(glGetUniformLocation(shader, (prefix + "position").c_str()), 1, glm::value_ptr(position));
@@ -232,17 +264,17 @@ int main(int argc, char *argv[]) {
     glBindVertexArray(sprite_vertex_array);
     for (auto& object : scene.objects) {
       if (!object->HasTag("sprite")) continue;
-      auto position = *(glm::vec3*)object->GetAttribute("transform.position");
-      auto scale = *(glm::vec3*)object->GetAttribute("transform.scale");
-      auto rotation = *(float*)object->GetAttribute("transform.rotation");
-      auto color = *(unsigned int*)object->GetAttribute("texture.color");
+      auto position = std::get<glm::vec3>(object->GetAttribute("transform.position"));
+      auto scale = std::get<glm::vec3>(object->GetAttribute("transform.scale"));
+      auto rotation = std::get<float>(object->GetAttribute("transform.rotation"));
+      unsigned int texture = std::get<unsigned int>(object->GetAttribute("texture.color"));
       model = glm::translate(glm::mat4(1.0f), position);
       model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 0.0f, 1.0f));
       model = glm::scale(model, scale);
       glUniformMatrix4fv(glGetUniformLocation(sprite_shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
       glUniform1i(glGetUniformLocation(sprite_shader, "sprite"), 0);
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, color);
+      glBindTexture(GL_TEXTURE_2D, texture);
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
 
@@ -254,10 +286,10 @@ int main(int argc, char *argv[]) {
     glBindVertexArray(sprite_vertex_array);
     for (auto& object : scene.objects) {
       if (!object->HasTag("sprite")) continue;
-      auto position = *(glm::vec3*)object->GetAttribute("transform.position");
-      auto scale = *(glm::vec3*)object->GetAttribute("transform.scale");
-      auto rotation = *(float*)object->GetAttribute("transform.rotation");
-      unsigned int texture = *(unsigned int*)object->GetAttribute("texture.normal");
+      auto position = std::get<glm::vec3>(object->GetAttribute("transform.position"));
+      auto scale = std::get<glm::vec3>(object->GetAttribute("transform.scale"));
+      auto rotation = std::get<float>(object->GetAttribute("transform.rotation"));
+      unsigned int texture = std::get<unsigned int>(object->GetAttribute("texture.normal"));
       model = glm::translate(glm::mat4(1.0f), position);
       model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 0.0f, 1.0f));
       model = glm::scale(model, scale);
@@ -298,12 +330,13 @@ int main(int argc, char *argv[]) {
       ImGui::Begin("Scene Hierarchy");
       if (ImGui::Button("New Object")) {
         auto object = std::make_shared<Object>();
-        object->SetAttribute("transform.position", (void*)(new glm::vec3(0.0f, 0.0f, 0.0f)));
-        object->SetAttribute("transform.scale", (void*)(new glm::vec3(1.0f, 1.0f, 1.0f)));
-        object->SetAttribute("transform.rotation", (void*)(new float(0.0f)));
+        object->SetAttribute("transform.position", glm::vec3(0.0f, 0.0f, 0.0f));
+        object->SetAttribute("transform.scale", glm::vec3(1.0f, 1.0f, 1.0f));
+        object->SetAttribute("transform.rotation", float(0.0f));
         scene.objects.push_back(object);
       }
       for (auto& object : scene.objects) {
+        ImGui::PushID(object.get());
         ImGui::Text("Object");
         ImGui::SeparatorText("Tags");
         for (auto& tag : object->tags) {
@@ -316,14 +349,51 @@ int main(int argc, char *argv[]) {
         for (auto& attr : object->attributes) {
           ImGui::PushID(&attr);
           ImGui::InputText("Attribute Name", &attr.first);
-          // Figure out a way to resolve the attribute type here
-          ImGui::Text("Value: %p", attr.second);
+          GetInspector(attr.second);
           ImGui::PopID();
         }
         if (ImGui::Button("Add Attribute")) {
-          object->SetAttribute("new attribute", (void*)(new int(0)));
+          ImGui::OpenPopup("Select Attribute Type");
         }
+        if (ImGui::BeginPopupModal("Select Attribute Type")) {
+            static int attr_type = 0;
+            ImGui::RadioButton("int", &attr_type, 0);
+            ImGui::RadioButton("float", &attr_type, 1);
+            ImGui::RadioButton("vec2", &attr_type, 2);
+            ImGui::RadioButton("vec3", &attr_type, 3);
+            ImGui::RadioButton("texture", &attr_type, 4);
+            if (ImGui::Button("OK")) {
+              switch (attr_type) {
+                case 0:
+                  object->SetAttribute("new attribute", int(0));
+                  break;
+                case 1:
+                  object->SetAttribute("new attribute", float(0.0f));
+                  break;
+                case 2:
+                  object->SetAttribute("new attribute", glm::vec2(0.0f, 0.0f));
+                  break;
+                case 3:
+                  object->SetAttribute("new attribute", glm::vec3(0.0f, 0.0f, 0.0f));
+                  break;
+                case 4:
+                  object->SetAttribute("new attribute", (unsigned int)(0));
+                  break;
+                default:
+                  break;
+              }
+              ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+          }
+        ImGui::PopID();
       }
+
+      ImGui::Image(color_buffer->colorbuffer, ImVec2(256, 256));
+      ImGui::SameLine();
+      ImGui::Image(normal_buffer->colorbuffer, ImVec2(256, 256));
+      ImGui::SameLine();
+      ImGui::Image(deferred_buffer->colorbuffer, ImVec2(256, 256));
       ImGui::End();
     }
 
