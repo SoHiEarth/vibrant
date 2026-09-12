@@ -39,7 +39,7 @@ constexpr std::array<unsigned int, 6> shared_indices = {
 void FramebufferResizeCallback(GLFWwindow* window, int w, int h) {
   for (auto& framebuffer : all_framebuffers) {
     framebuffer->size = glm::ivec2(std::max(1, (int)(w * framebuffer->scale)),
-                                   std::max(1, (int)(h *framebuffer->scale)));
+                                   std::max(1, (int)(h * framebuffer->scale)));
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
     glBindTexture(GL_TEXTURE_2D, framebuffer->colorbuffer);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer->size.x, framebuffer->size.y, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -106,9 +106,9 @@ int main(int argc, char *argv[]) {
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
-  auto color_buffer = CreateFramebuffer(window, 10);
-  auto normal_buffer = CreateFramebuffer(window, 10);
-  auto deferred_buffer = CreateFramebuffer(window, 10);
+  auto color_buffer = CreateFramebuffer(window, 0.1f);
+  auto normal_buffer = CreateFramebuffer(window, 0.1f);
+  auto deferred_buffer = CreateFramebuffer(window, 0.1f);
   auto sprite_shader = LoadShaderProgram({
       {GL_VERTEX_SHADER, "assets/sprite_vertex.glsl"},
       {GL_FRAGMENT_SHADER, "assets/sprite_fragment.glsl"}
