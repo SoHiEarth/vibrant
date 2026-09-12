@@ -1,3 +1,6 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/microsoft/vcpkg
+[submodule "include/imgui_markdown"]
+	path = include/imgui_markdown
+	url = https://github.com/enkisoftware/imgui_markdown.git
