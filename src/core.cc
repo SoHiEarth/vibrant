@@ -6,6 +6,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include <stdexcept>
+#include <iostream>
 
 void core::Initialize(InitializeFlags flags, void* window_ptr) {
   if (static_cast<int>(flags) & static_cast<int>(InitializeFlags::kOpengl)) {
@@ -30,5 +31,11 @@ void core::Initialize(InitializeFlags flags, void* window_ptr) {
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 150");
+    float dpi_scale_x = 0.0F;
+    float dpi_scale_y = 0.0F;
+    glfwGetWindowContentScale(window, &dpi_scale_x, &dpi_scale_y);
+    std::cout << "Using dpi scale " << std::max(dpi_scale_x, dpi_scale_y) << std::endl;
+    ImGui::GetStyle().ScaleAllSizes(std::max(dpi_scale_x, dpi_scale_y));
+    ImGui::GetIO().FontGlobalScale = std::max(dpi_scale_x, dpi_scale_y);
   }
 }
