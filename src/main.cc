@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <string>
 #include <format>
+#include <tinyfiledialogs/tinyfiledialogs.h>
 #include "helpers.h"
 #include "core.h"
 constexpr glm::ivec2 default_window_size = { 800, 600 };
@@ -43,6 +44,8 @@ void WindowResizeCallback(GLFWwindow* window, int w, int h) {
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->id);
     glBindTexture(GL_TEXTURE_2D, framebuffer->colorbuffer);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, framebuffer->depthbuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
@@ -106,9 +109,35 @@ int main(int argc, char *argv[]) {
   core::Initialize(core::InitializeFlags::IMGUI, window);
 
   // Setting up GL objects
+  // glEnable(GL_DEPTH_TEST);
+  //glDepthFunc(GL_LESS);
+  unsigned int depth_buffer;
+  glGenTextures(1, &depth_buffer);
+  glBindTexture(GL_TEXTURE_2D, depth_buffer);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+                default_window_size.x, default_window_size.y,
+                0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
   auto color_buffer = CreateFramebuffer(window), normal_buffer = CreateFramebuffer(window);
-  
-  auto sprite_shader = LoadShaderProgram("assets/sprite.vert", "assets/sprite.frag");
+  glBindFramebuffer(GL_FRAMEBUFFER, color_buffer->id);
+  color_buffer->depthbuffer = depth_buffer;
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D
+                          , depth_buffer, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, normal_buffer->id);
+  normal_buffer->depthbuffer = depth_buffer;
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D
+                          , depth_buffer, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  auto sprite_shader = LoadShaderProgram({
+      {GL_VERTEX_SHADER, "assets/sprite.vert"},
+      {GL_FRAGMENT_SHADER, "assets/sprite.frag"}
+  });
   auto sprite_uniform_buffer_create_info = BufferCreateInfo<float>{
     GL_UNIFORM_BUFFER,
     GL_STATIC_DRAW,
@@ -148,7 +177,14 @@ int main(int argc, char *argv[]) {
   auto sprite_vertex_array = CreateVertexArrayObject(sprite_vertex_array_create_info);
   glBindVertexArray(0);
 
-  auto deferred_shader = LoadShaderProgram("assets/deferred.vert", "assets/deferred.frag");
+  auto deferred_shader = LoadShaderProgram({
+    {GL_VERTEX_SHADER, "assets/deferred.vert"},
+    {GL_FRAGMENT_SHADER, "assets/deferred.frag"}
+  });
+  uniform_block_index = glGetUniformBlockIndex(deferred_shader, "Matrices");
+  glUniformBlockBinding(deferred_shader, uniform_block_index, 0);
+  glBindBufferRange(GL_UNIFORM_BUFFER, 0, sprite_uniform_buffer, 0, 2 * sizeof(glm::mat4));
+  glBindBuffer(GL_UNIFORM_BUFFER, 0);
   auto deferred_vertices_create_info = BufferCreateInfo<float>{
     GL_ARRAY_BUFFER,
     GL_STATIC_DRAW,
@@ -206,7 +242,7 @@ int main(int argc, char *argv[]) {
     glBindFramebuffer(GL_FRAMEBUFFER, color_buffer->id);
     glViewport(0, 0, window_width, window_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(sprite_shader);
     glBindVertexArray(sprite_vertex_array);
     for (auto& [transform, texture_pack] : sprite_objects) {
@@ -224,7 +260,7 @@ int main(int argc, char *argv[]) {
     glBindFramebuffer(GL_FRAMEBUFFER, normal_buffer->id);
     glViewport(0, 0, window_width, window_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(sprite_shader);
     glBindVertexArray(sprite_vertex_array);
     for (auto& [transform, texture_pack ] : sprite_objects) {
@@ -247,10 +283,13 @@ int main(int argc, char *argv[]) {
     SetLightUniforms(lights, deferred_shader);
     glUniform1i(glGetUniformLocation(deferred_shader, "color_buffer"), 0);
     glUniform1i(glGetUniformLocation(deferred_shader, "normal_buffer"), 1);
+    glUniform1i(glGetUniformLocation(deferred_shader, "depth_buffer"), 2);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, color_buffer->colorbuffer);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, normal_buffer->colorbuffer);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, depth_buffer);
     glBindVertexArray(deferred_vertex_attrib);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -290,8 +329,28 @@ int main(int argc, char *argv[]) {
         ImGui::SameLine();
         ImGui::Image((ImTextureID)(intptr_t)texture_pack.normal, ImVec2(50, 50));
         if (ImGui::Button("Load")) {
-          texture_pack.color = LoadTexture("assets/color.png");
-          texture_pack.normal = LoadTexture("assets/normal.png");
+          auto color_path = tinyfd_openFileDialog(
+            "Select Color Texture",
+            "",
+            0,
+            NULL,
+            NULL,
+            0
+          );
+          if (color_path) {
+            texture_pack.color = LoadTexture(color_path);
+          }
+          auto normal_path = tinyfd_openFileDialog(
+            "Select Normal Texture",
+            "",
+            0,
+            NULL,
+            NULL,
+            0
+          );
+          if (normal_path) {
+            texture_pack.normal = LoadTexture(normal_path);
+          }
         }
         ImGui::PopID();
       }

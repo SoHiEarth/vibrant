@@ -7,6 +7,7 @@ find_package(ImGui CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(Stb REQUIRED)
 find_package(pugixml CONFIG REQUIRED)
+find_package(tinyfiledialogs CONFIG REQUIRED)
 
 add_executable(vibrant)
 target_compile_features(vibrant PRIVATE cxx_std_23)
@@ -23,4 +24,5 @@ target_link_libraries(vibrant PUBLIC
     imgui::imgui
     OpenGL::GL
     pugixml::pugixml
+    tinyfiledialogs::tinyfiledialogs
 )
