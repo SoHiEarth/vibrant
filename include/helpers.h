@@ -1,6 +1,7 @@
 #ifndef HELPERS_H
 #define HELPERS_H
-
+#include <glad/glad.h>
+// Code block
 #include <GLFW/glfw3.h>
 
 #include <memory>
