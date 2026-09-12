@@ -8,13 +8,13 @@ find_package(OpenGL REQUIRED)
 find_package(Stb REQUIRED)
 find_package(pugixml CONFIG REQUIRED)
 
-add_executable(ion-base)
-target_compile_features(ion-base PRIVATE cxx_std_23)
-target_sources(ion-base PRIVATE
+add_executable(vibrant)
+target_compile_features(vibrant PRIVATE cxx_std_23)
+target_sources(vibrant PRIVATE
   src/main.cc
 )
-target_include_directories(ion-base PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(ion-base PUBLIC
+target_include_directories(vibrant PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(vibrant PUBLIC
     glad::glad
     glfw
     glm::glm
