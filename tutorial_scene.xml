@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<scene>
+	<object>
+		<attribute name="transform.position" type="vec3" value="0.000000,0.000000,0.000000" />
+		<attribute name="transform.scale" type="vec3" value="1.000000,1.000000,1.000000" />
+		<attribute name="transform.rotation" type="float" value="0.000000" />
+		<attribute name="light.type" type="int" value="1" />
+		<attribute name="light.intensity" type="float" value="0.500000" />
+		<attribute name="light.color" type="vec3" value="1.000000,1.000000,1.000000" />
+		<attribute name="light.radial_falloff" type="float" value="1.000000" />
+		<attribute name="light.volumetric_intensity" type="float" value="1.000000" />
+		<tag name="light" />
+	</object>
+	<object>
+		<attribute name="transform.position" type="vec3" value="0.000000,0.000000,0.000000" />
+		<attribute name="transform.scale" type="vec3" value="15.000000,15.000000,5.000000" />
+		<attribute name="transform.rotation" type="float" value="0.000000" />
+		<attribute name="texture.color" type="texture" value="/home/kotaro/vibrant/assets/color.png" />
+		<attribute name="texture.normal" type="texture" value="/home/kotaro/vibrant/assets/normal.png" />
+		<tag name="sprite" />
+	</object>
+</scene>
