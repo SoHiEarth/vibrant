@@ -30,9 +30,6 @@
 std::map<std::string, LogLevel> output_log;
 
 Texture LoadTexture(const std::string& path) {
-  if (!std::filesystem::exists(path)) {
-    throw std::runtime_error("Path does not exist");
-  }
   int w;
   int h;
   int nr_channels;
@@ -44,7 +41,7 @@ Texture LoadTexture(const std::string& path) {
     return {.id=texture, .path=path};
   }
   stbi_image_free(data);
-  throw std::runtime_error("Failed to load texture");
+  return {.id=0U, .path=path};
 }
 
 namespace {
