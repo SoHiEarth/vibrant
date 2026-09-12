@@ -1,0 +1,19 @@
+{
+  "dependencies": [
+    "glad",
+    "glfw3",
+    "glm",
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "freetype",
+        "glfw-binding",
+        "opengl3-binding"
+      ]
+    },
+    "opengl",
+    "pugixml",
+    "stb"
+  ]
+}
