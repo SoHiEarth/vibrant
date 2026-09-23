@@ -10,6 +10,11 @@
 
 ![](docs/screenshot.png)
 
+> [!IMPORTANT]
+> Commit times are messed up because of a `git push --force` I did a while ago.
+> The project was made across the timespan of January to April 2026, for the "Flavortown"
+> YSWS program by Hack Club.
+
 ## Features
   * Dynamic Lighting
   * Normal Support
@@ -19,23 +24,20 @@
 
 Vibrant is optimized through and through, with the following notable optimization tricks used:
 
-|                          Name                           | Perf. Before | Perf. After |
-|---------------------------------------------------------|--------------|-------------|
-| Use of C++ (low level language)                         | ---          | ---         |
-| Optimized object structure                              | 3.2 GB       | 1.9 GB      |
-| Replaced raw pointers with STL                          | 1.9 GB       | 1.8 GB      |
-| Cache textures, vertex arrays, GPU buffers              | 1.8 GB       | 420 MB      |
-| Cache shaders and return on request                     | 420 MB       | 405 MB      |
-| Remove unnecessary data from Texture struct             | 405 MB       | 394 MB      |
-| Implement **Deferred Rendering**                        |  ---         | 52 FPS      |
-| Remove variables from deferred shaders                  | 52 FPS       | 65 FPS      |
-| Used XML for level parsing (+ readability)              | ---          | 58 ms (?)   |
-| Used `std::string_view` instead of `std::string`        | ---          | ---         |
-| Used const references to minimize copy operations       | 394 MB       | 340 MB      |
-| Used std::map in `include/log.h`, O(n^2) time to O(n)   | ---          | ---         |
-| Used clang-format and clang-tidy with Google Style      | ---          | + aura      |
-
-*(Tested with a scene with 10000 objects, Rig info: 12900K, RTX 3060, Windows 10 22H2. Averages of 10 runs after stabilizing. Used ImGui to extract FPS info. FPS measurements are the averages of a timespan of 10 seconds (after initialization). Level loading time is extracted from measurements using std::chrono implemented in LoadScene(std::string_view), in src/scene.cc. Level saving time is extracted from measurements using std::chrono implmeneted in SaveScene(const Scene& scene, std::string_view path), in src/scene.cc. Memory usage measurements taken from Task Manager (Windows))*
+|                          Name                           |
+|---------------------------------------------------------|
+| Use of C++ (low level language)                         |
+| Optimize object structure                               |
+| Replace raw pointers with STL                           |
+| Cache textures, vertex arrays, GPU buffers              |
+| Cache shaders and return on request                     |
+| Remove unnecessary data from Texture struct             |
+| Implement Deferred Rendering.                           |
+| Remove variables from deferred shaders                  |
+| Use XML for level parsing (+ readability)               |
+| Use `std::string_view` instead of `std::string`         |
+| Use const references to minimize copy operations        |
+| Use of `std::map` and `std::unordered_map`              |
 
 ## Installation
 ### Linux
